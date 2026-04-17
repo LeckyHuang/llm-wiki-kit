@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>展厅方案知识库</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 600; }
+    .tab-inactive { border-bottom: 3px solid transparent; color: #6b7280; }
+    .tab-inactive:hover { color: #374151; }
+    /* ── 结果区域排版 ── */
+    #result-box { line-height: 1.75; color: #374151; }
+    #result-box h2 {
+      font-size: 0.95rem; font-weight: 700; margin: 1.6rem 0 0.75rem;
+      color: #1e40af; padding: 6px 12px;
+      background: #eff6ff; border-left: 4px solid #2563eb;
+      border-radius: 0 6px 6px 0;
+    }
+    #result-box h2:first-child { margin-top: 0; }
+    #result-box h3 {
+      font-size: 0.9rem; font-weight: 700; margin: 1rem 0 0.4rem;
+      color: #1f2937; padding-left: 10px;
+      border-left: 3px solid #93c5fd;
+    }
+    #result-box ul { list-style: none; padding-left: 0; margin: 0.4rem 0; }
+    #result-box ul li { margin: 0.3rem 0; padding-left: 1.2rem; line-height: 1.75; position: relative; }
+    #result-box ul li::before { content: "·"; position: absolute; left: 4px; color: #60a5fa; font-size: 1.1rem; line-height: 1.5; }
+    #result-box ol { padding-left: 1.4rem; margin: 0.4rem 0; }
+    #result-box ol li { margin: 0.3rem 0; line-height: 1.75; }
+    #result-box p { margin: 0.5rem 0; line-height: 1.8; }
+    #result-box strong { color: #111827; font-weight: 600; }
+    #result-box em { color: #6b7280; }
+    #result-box blockquote { border-left: 3px solid #e5e7eb; padding-left: 12px; color: #6b7280; margin: 0.5rem 0; }
+    /* 表格 */
+    #result-box table { width: 100%; border-collapse: collapse; margin: 0.8rem 0; font-size: 0.82rem; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+    #result-box th { background: #eff6ff; color: #1e40af; font-weight: 600; padding: 9px 14px; text-align: left; border-bottom: 2px solid #bfdbfe; white-space: nowrap; }
+    #result-box td { padding: 8px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: top; line-height: 1.65; }
+    #result-box tr:last-child td { border-bottom: none; }
+    #result-box tr:nth-child(even) td { background: #fafafa; }
+    #result-box tr:hover td { background: #f0f9ff; }
+    /* wiki 内部链接标签 */
+    .wiki-ref { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 999px; color: #15803d; font-size: 0.75rem; white-space: nowrap; }
+    .chat-bubble-user { background: #2563eb; color: white; border-radius: 18px 18px 4px 18px; }
+    .chat-bubble-ai { background: #f3f4f6; color: #1f2937; border-radius: 18px 18px 18px 4px; }
+    .chat-bubble-ai h2, .chat-bubble-ai h3 { font-size: 0.95rem; font-weight: 700; margin: 0.8rem 0 0.3rem; color: #1e40af; }
+    .chat-bubble-ai ul { list-style: disc; padding-left: 1.2rem; }
+    .chat-bubble-ai li { margin: 0.2rem 0; }
+    .spinner { border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; width: 22px; height: 22px; animation: spin 0.8s linear infinite; }
+    .spinner-sm { border: 2px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    textarea:focus, select:focus, input[type="text"]:focus, input[type="password"]:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; color: #1d4ed8; font-size: 0.75rem; cursor: pointer; }
+    .file-chip:hover { background: #dbeafe; }
+    .file-chip-btn { border: none; background: none; cursor: pointer; font-size: 0.75rem; color: inherit; padding: 0; }
+    .file-chip-sep { color: #93c5fd; margin: 0 2px; }
+    .file-chip-ppt { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+    .file-chip-ppt:hover { background: #ffedd5; }
+    /* Admin modal sub-tab */
+    .admin-tab-active { background: #eff6ff; color: #2563eb; font-weight: 600; border-right: 3px solid #2563eb; }
+    .admin-tab-inactive { color: #6b7280; }
+    .admin-tab-inactive:hover { background: #f9fafb; color: #374151; }
+    /* Table */
+    .data-table th { background: #f9fafb; font-size: 0.75rem; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    .data-table td { font-size: 0.82rem; color: #374151; padding: 8px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #f9fafb; }
+    /* Badge */
+    .badge-admin { background: #fef3c7; color: #92400e; border-radius: 999px; padding: 1px 8px; font-size: 0.7rem; font-weight: 600; }
+    .badge-user { background: #f0fdf4; color: #166534; border-radius: 999px; padding: 1px 8px; font-size: 0.7rem; font-weight: 600; }
+    /* Rating */
+    .rating-btn { border: 1px solid #e5e7eb; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; background: white; transition: all 0.15s; }
+    .rating-btn:hover { background: #f3f4f6; }
+    .rating-btn-up.selected { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .rating-btn-down.selected { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- ═══════════════════════════════════════════════════════════
+     登录遮罩
+═══════════════════════════════════════════════════════════ -->
+<div id="login-overlay" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 w-full max-w-sm mx-4">
+    <div class="flex items-center gap-3 mb-8">
+      <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-base font-semibold text-gray-900">展厅方案知识库</h1>
+        <p class="text-xs text-gray-400">请登录后使用</p>
+      </div>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1.5">姓名</label>
+        <input id="login-name" type="text" placeholder="请输入姓名"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all"
+          onkeydown="if(event.key==='Enter') document.getElementById('login-pwd').focus()" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1.5">密码</label>
+        <input id="login-pwd" type="password" placeholder="请输入密码"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all"
+          onkeydown="if(event.key==='Enter') doLogin()" />
+      </div>
+      <p id="login-error" class="text-xs text-red-500 hidden"></p>
+      <button onclick="doLogin()" id="btn-login"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl text-sm transition-colors">
+        登录
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     主应用（登录后显示）
+═══════════════════════════════════════════════════════════ -->
+<div id="main-app" class="hidden">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base font-semibold text-gray-900">展厅方案知识库</h1>
+          <p class="text-xs text-gray-400" id="wiki-status">加载中...</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- 系统设置（仅管理员可见） -->
+        <button id="btn-admin" onclick="openAdmin()" class="hidden text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:border-blue-200 transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          系统设置
+        </button>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500" id="header-username"></span>
+          <button onclick="doLogout()" class="text-xs text-gray-400 hover:text-red-500 transition-colors">退出</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="bg-white border-b border-gray-200">
+    <div class="max-w-4xl mx-auto px-4">
+      <div class="flex gap-6">
+        <button id="tab-query" onclick="switchTab('query')" class="tab-active py-3 text-sm transition-all">
+          📋 方案查询
+        </button>
+        <button id="tab-estimation" onclick="switchTab('estimation')" class="tab-inactive py-3 text-sm transition-all">
+          📊 方案概算
+        </button>
+        <button id="tab-chat" onclick="switchTab('chat')" class="tab-inactive py-3 text-sm transition-all">
+          💬 随手问
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-4xl mx-auto px-4 py-6">
+
+    <!-- ── 方案查询 Tab ─────────────────────────────────────── -->
+    <div id="panel-query">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+        <h2 class="text-sm font-semibold text-gray-700 mb-4">项目信息</h2>
+
+        <!-- SU名称 + 商机名称 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1.5">SU名称 <span class="text-blue-400">（自动带出）</span></label>
+            <input id="q-su-name" type="text" readonly
+              class="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600 cursor-default" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1.5">商机名称 <span class="text-red-400">*</span></label>
+            <input id="q-opportunity" type="text" placeholder="请输入商机名称（必填）"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 transition-all"
+              oninput="checkQueryReady()" />
+          </div>
+        </div>
+
+        <h2 class="text-sm font-semibold text-gray-700 mb-4">选择项目维度</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1.5">行业</label>
+            <select id="q-industry" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-800 transition-all">
+              <option value="">不限</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1.5">展厅类型</label>
+            <select id="q-hall" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-800 transition-all">
+              <option value="">不限</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1.5">项目类型</label>
+            <select id="q-project" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-800 transition-all">
+              <option value="">不限</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-xs text-gray-500 mb-2">需要包含</label>
+          <div class="flex flex-wrap gap-3">
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" id="q-competitors" class="w-4 h-4 rounded accent-blue-600" /> 竞品参考
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" id="q-policies" class="w-4 h-4 rounded accent-blue-600" /> 政策依据
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" id="q-credentials" class="w-4 h-4 rounded accent-blue-600" /> 资质证书/案例
+            </label>
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <label class="block text-xs text-gray-500 mb-1.5">补充说明（选填）</label>
+          <textarea id="q-extra" rows="2" placeholder="例如：客户预算约500万，需重点突出互动体验..."
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 resize-none transition-all"></textarea>
+        </div>
+
+        <button onclick="doQuery()" id="btn-query" disabled
+          class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          生成方案素材包
+        </button>
+      </div>
+
+      <!-- 查询加载中 -->
+      <div id="query-loading" class="hidden flex flex-col items-center justify-center py-16 gap-3">
+        <div class="spinner"></div>
+        <p class="text-sm text-gray-400">正在检索知识库，请稍候...</p>
+      </div>
+
+      <!-- 查询结果 -->
+      <div id="query-result" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-700">知识库素材</h3>
+          <button onclick="copyResult()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            复制内容
+          </button>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 pb-4">
+          <div id="result-box" class="text-sm fade-in"></div>
+        </div>
+
+        <!-- 反馈区域 -->
+        <div id="feedback-area" class="mt-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <p class="text-xs text-gray-500 mb-3">这次推荐对你有帮助吗？</p>
+          <div class="flex items-center gap-3">
+            <button id="btn-up" onclick="selectRating(1)"
+              class="rating-btn rating-btn-up flex items-center gap-1.5">
+              👍 有帮助
+            </button>
+            <button id="btn-down" onclick="selectRating(-1)"
+              class="rating-btn rating-btn-down flex items-center gap-1.5">
+              👎 待改进
+            </button>
+          </div>
+          <!-- 意见输入（点击后展开） -->
+          <div id="feedback-comment-area" class="hidden mt-3">
+            <textarea id="feedback-comment" rows="2" placeholder="可选：请描述具体问题或建议..."
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 resize-none transition-all"></textarea>
+            <div class="flex gap-2 mt-2">
+              <button onclick="submitFeedback()"
+                class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors">
+                提交反馈
+              </button>
+              <button onclick="cancelFeedback()" class="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">
+                取消
+              </button>
+            </div>
+          </div>
+          <p id="feedback-done" class="hidden text-xs text-green-600 mt-2">✓ 感谢你的反馈！</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 方案概算 Tab ─────────────────────────────────────── -->
+    <div id="panel-estimation" class="hidden">
+      <div id="estimation-loading" class="flex flex-col items-center justify-center py-16 gap-3">
+        <div class="spinner"></div>
+        <p class="text-sm text-gray-400">加载中...</p>
+      </div>
+      <div id="estimation-content" class="hidden">
+        <p class="text-xs text-gray-400 mb-5">点击下载对应类型的概算模板文件</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5" id="estimation-grid"></div>
+        <p id="estimation-empty" class="hidden text-center text-sm text-gray-400 py-12">
+          暂无概算文件，请联系管理员上传。
+        </p>
+      </div>
+    </div>
+
+    <!-- ── 随手问 Tab ───────────────────────────────────────── -->
+    <div id="panel-chat" class="hidden flex flex-col" style="height: calc(100vh - 160px);">
+      <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 pb-4">
+        <div class="flex justify-center">
+          <p class="text-xs text-gray-400 bg-white rounded-full px-4 py-1.5 border border-gray-100">
+            可以直接问任何关于展厅方案的问题
+          </p>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 mt-3">
+        <textarea id="chat-input" rows="2" placeholder="例如：我们有没有做过医疗行业的数字展厅？友商在科技类项目里常用什么策略？"
+          class="w-full border-0 text-sm text-gray-800 resize-none focus:outline-none"
+          onkeydown="handleChatKey(event)"></textarea>
+        <div class="flex justify-between items-center mt-2">
+          <p class="text-xs text-gray-400">Enter 换行，Ctrl+Enter 发送</p>
+          <button onclick="doChat()" id="btn-chat"
+            class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2 rounded-xl transition-colors flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+            发送
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content area -->
+</div><!-- /main-app -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     系统设置 全屏弹窗（管理员）
+═══════════════════════════════════════════════════════════ -->
+<div id="admin-modal" class="hidden fixed inset-0 bg-white z-40 flex flex-col">
+
+  <!-- Admin 头部 -->
+  <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+    <h2 class="text-base font-semibold text-gray-800">系统设置</h2>
+    <button onclick="closeAdmin()" class="text-gray-400 hover:text-gray-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Admin 主体 -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- 侧边导航 -->
+    <nav class="w-44 flex-shrink-0 border-r border-gray-200 py-4 space-y-1 px-2">
+      <button onclick="switchAdminTab('users')" id="atab-users" class="admin-tab-active w-full text-left px-3 py-2 rounded-lg text-sm transition-all">
+        👥 用户管理
+      </button>
+      <button onclick="switchAdminTab('sunames')" id="atab-sunames" class="admin-tab-inactive w-full text-left px-3 py-2 rounded-lg text-sm transition-all">
+        🏢 SU名称管理
+      </button>
+      <button onclick="switchAdminTab('estfiles')" id="atab-estfiles" class="admin-tab-inactive w-full text-left px-3 py-2 rounded-lg text-sm transition-all">
+        📁 概算文件管理
+      </button>
+      <button onclick="switchAdminTab('prompt')" id="atab-prompt" class="admin-tab-inactive w-full text-left px-3 py-2 rounded-lg text-sm transition-all">
+        ✏️ 提示词设置
+      </button>
+      <button onclick="switchAdminTab('logs')" id="atab-logs" class="admin-tab-inactive w-full text-left px-3 py-2 rounded-lg text-sm transition-all">
+        📋 使用记录
+      </button>
+    </nav>
+
+    <!-- 内容区域 -->
+    <main class="flex-1 overflow-y-auto p-6">
+
+      <!-- ── 用户管理 ── -->
+      <div id="apanel-users">
+        <div class="flex items-center justify-between mb-5">
+          <h3 class="text-sm font-semibold text-gray-800">用户列表</h3>
+          <button onclick="openUserModal()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            新增用户
+          </button>
+        </div>
+        <div class="border border-gray-100 rounded-xl overflow-hidden">
+          <table class="w-full data-table" id="users-table">
+            <thead><tr><th>姓名</th><th>SU名称</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody id="users-tbody"><tr><td colspan="5" class="text-center text-gray-400 py-8">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── SU 名称管理 ── -->
+      <div id="apanel-sunames" class="hidden">
+        <div class="flex items-center justify-between mb-5">
+          <h3 class="text-sm font-semibold text-gray-800">SU名称列表</h3>
+          <div class="flex gap-2">
+            <input id="new-suname-input" type="text" placeholder="输入SU名称"
+              class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 transition-all w-40"
+              onkeydown="if(event.key==='Enter') addSuName()" />
+            <button onclick="addSuName()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors">
+              添加
+            </button>
+          </div>
+        </div>
+        <div class="border border-gray-100 rounded-xl overflow-hidden">
+          <table class="w-full data-table">
+            <thead><tr><th>SU名称</th><th>添加时间</th><th>操作</th></tr></thead>
+            <tbody id="sunames-tbody"><tr><td colspan="3" class="text-center text-gray-400 py-8">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 概算文件管理 ── -->
+      <div id="apanel-estfiles" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-gray-800">概算模板文件</h3>
+        </div>
+        <!-- 上传表单 -->
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5">
+          <p class="text-xs font-semibold text-gray-600 mb-3">上传新文件</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">显示名称 *</label>
+              <input id="est-name" type="text" placeholder="文件显示名称"
+                class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm transition-all" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">类型 *</label>
+              <select id="est-category" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white transition-all">
+                <option>展厅新建</option>
+                <option>展厅升级</option>
+                <option>展厅运营</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">选择文件 *</label>
+              <input id="est-file" type="file" class="w-full text-xs text-gray-600" />
+            </div>
+          </div>
+          <button onclick="uploadEstFile()" id="btn-est-upload"
+            class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors">
+            上传
+          </button>
+          <span id="est-upload-msg" class="hidden text-xs text-green-600 ml-3"></span>
+        </div>
+        <!-- 文件列表 -->
+        <div class="border border-gray-100 rounded-xl overflow-hidden">
+          <table class="w-full data-table">
+            <thead><tr><th>显示名称</th><th>类型</th><th>文件名</th><th>上传时间</th><th>操作</th></tr></thead>
+            <tbody id="estfiles-tbody"><tr><td colspan="5" class="text-center text-gray-400 py-8">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 提示词设置 ── -->
+      <div id="apanel-prompt" class="hidden">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-800">方案查询 Prompt 模板</h3>
+            <p class="text-xs text-gray-400 mt-1">修改后点击保存，下次查询即生效，无需重启服务</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="resetPrompt()" class="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg transition-colors">
+              恢复默认
+            </button>
+            <button onclick="savePrompt()" id="btn-save-prompt"
+              class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors">
+              保存
+            </button>
+          </div>
+        </div>
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4">
+          <p class="text-xs font-semibold text-blue-700 mb-1.5">可用变量（用 {变量名} 引用）</p>
+          <ul class="text-xs text-blue-600 space-y-0.5" id="prompt-variables"><li>加载中...</li></ul>
+        </div>
+        <textarea id="prompt-editor" rows="20"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 font-mono resize-y transition-all"
+          placeholder="加载中..."></textarea>
+        <p id="prompt-save-msg" class="text-xs text-green-600 mt-2 hidden">✓ 已保存</p>
+      </div>
+
+      <!-- ── 使用记录 ── -->
+      <div id="apanel-logs" class="hidden">
+        <div class="flex items-center gap-3 mb-4 flex-wrap">
+          <h3 class="text-sm font-semibold text-gray-800 mr-2">使用记录</h3>
+          <input id="log-filter-user" type="text" placeholder="姓名筛选"
+            class="border border-gray-200 rounded-lg px-3 py-1.5 text-xs w-28 transition-all" />
+          <input id="log-filter-from" type="date"
+            class="border border-gray-200 rounded-lg px-3 py-1.5 text-xs transition-all" />
+          <span class="text-xs text-gray-400">至</span>
+          <input id="log-filter-to" type="date"
+            class="border border-gray-200 rounded-lg px-3 py-1.5 text-xs transition-all" />
+          <button onclick="loadLogs()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition-colors">
+            查询
+          </button>
+        </div>
+        <div class="border border-gray-100 rounded-xl overflow-hidden overflow-x-auto">
+          <table class="w-full data-table min-w-[750px]">
+            <thead><tr><th>时间</th><th>姓名</th><th>SU</th><th>行为</th><th>详情（商机/文件名）</th><th>反馈</th></tr></thead>
+            <tbody id="logs-tbody"><tr><td colspan="6" class="text-center text-gray-400 py-8">点击查询加载记录</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ── 用户新增/编辑弹窗 ── -->
+<div id="user-modal" class="hidden fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-lg w-full max-w-sm mx-4 p-6">
+    <h3 class="text-sm font-semibold text-gray-800 mb-5" id="user-modal-title">新增用户</h3>
+    <input type="hidden" id="edit-user-id" value="" />
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">姓名 *</label>
+        <input id="edit-name" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm transition-all" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">SU名称 *</label>
+        <select id="edit-suname" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white transition-all">
+          <option value="">（无）</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">角色 *</label>
+        <select id="edit-role" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white transition-all">
+          <option value="user">普通用户</option>
+          <option value="admin">管理员</option>
+        </select>
+      </div>
+      <div id="edit-pwd-row">
+        <label class="block text-xs text-gray-500 mb-1">初始密码 *</label>
+        <input id="edit-pwd" type="password" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm transition-all" />
+      </div>
+    </div>
+    <p id="user-modal-error" class="text-xs text-red-500 mt-2 hidden"></p>
+    <div class="flex justify-end gap-2 mt-5">
+      <button onclick="closeUserModal()" class="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-4 py-2 rounded-lg transition-colors">
+        取消
+      </button>
+      <button onclick="saveUser()" id="btn-save-user"
+        class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition-colors">
+        保存
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 修改密码弹窗 ── -->
+<div id="pwd-modal" class="hidden fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-lg w-full max-w-xs mx-4 p-6">
+    <h3 class="text-sm font-semibold text-gray-800 mb-4">修改密码</h3>
+    <input type="hidden" id="pwd-user-id" />
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">新密码（至少6位）</label>
+      <input id="new-pwd" type="password" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm transition-all" />
+    </div>
+    <p id="pwd-modal-error" class="text-xs text-red-500 mt-2 hidden"></p>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="closePwdModal()" class="text-xs text-gray-500 border border-gray-200 px-4 py-2 rounded-lg">取消</button>
+      <button onclick="savePassword()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition-colors">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 概算文件编辑弹窗 ── -->
+<div id="estfile-edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-lg w-full max-w-xs mx-4 p-6">
+    <h3 class="text-sm font-semibold text-gray-800 mb-4">编辑概算文件</h3>
+    <input type="hidden" id="estfile-edit-id" />
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">显示名称</label>
+        <input id="estfile-edit-name" type="text" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm transition-all" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">类型</label>
+        <select id="estfile-edit-category" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white transition-all">
+          <option>展厅新建</option>
+          <option>展厅升级</option>
+          <option>展厅运营</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="document.getElementById('estfile-edit-modal').classList.add('hidden')" class="text-xs text-gray-500 border border-gray-200 px-4 py-2 rounded-lg">取消</button>
+      <button onclick="saveEstFileEdit()" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition-colors">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     JavaScript
+════════════════════════════════════════════════════════ -->
+<script>
+marked.setOptions({ breaks: true });
+
+// ─── 状态 ─────────────────────────────────────────────────
+let _token = null;
+let _currentUser = null;
+let _fileMap = {};       // {stem: {ext, has_pdf}}
+let _lastResult = '';
+let _currentUsageLogId = null;
+let _selectedRating = null;
+
+// ─── API 工具 ─────────────────────────────────────────────
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` };
+}
+
+async function api(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  const res = await fetch(url, opts);
+  if (res.status === 401) { doLogout(); throw new Error('登录已过期，请重新登录'); }
+  if (!res.ok) {
+    let msg = `请求失败 (${res.status})`;
+    try { const e = await res.json(); msg = e.detail || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+async function apiJSON(url, opts = {}) {
+  const res = await api(url, opts);
+  return res.json();
+}
+
+// 带 auth 的文件下载（处理跨域鉴权问题）
+async function downloadBlob(url, filename) {
+  const res = await api(url);
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+async function previewBlob(url) {
+  const res = await api(url);
+  const blob = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  window.open(objUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(objUrl), 30000);
+}
+
+// ─── 登录 / 登出 ─────────────────────────────────────────
+
+async function doLogin() {
+  const name = document.getElementById('login-name').value.trim();
+  const pwd = document.getElementById('login-pwd').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+
+  if (!name || !pwd) { errEl.textContent = '请输入姓名和密码'; errEl.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.textContent = '登录中...';
+  errEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password: pwd }),
+    });
+    if (!res.ok) {
+      const e = await res.json();
+      errEl.textContent = e.detail || '登录失败';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const data = await res.json();
+    _token = data.token;
+    _currentUser = { name: data.name, su_name: data.su_name, role: data.role };
+    localStorage.setItem('wiki_token', _token);
+    localStorage.setItem('wiki_user', JSON.stringify(_currentUser));
+    onLoggedIn();
+  } catch (e) {
+    errEl.textContent = e.message || '网络错误';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = '登录';
+  }
+}
+
+function doLogout() {
+  _token = null; _currentUser = null;
+  localStorage.removeItem('wiki_token');
+  localStorage.removeItem('wiki_user');
+  document.getElementById('main-app').classList.add('hidden');
+  document.getElementById('admin-modal').classList.add('hidden');
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-pwd').value = '';
+}
+
+function onLoggedIn() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('main-app').classList.remove('hidden');
+
+  // 设置用户信息
+  document.getElementById('header-username').textContent = _currentUser.name;
+  document.getElementById('q-su-name').value = _currentUser.su_name || '—';
+
+  // 管理员显示系统设置按钮
+  if (_currentUser.role === 'admin') {
+    document.getElementById('btn-admin').classList.remove('hidden');
+  }
+
+  loadWikiStats();
+  loadWikiOptions();
+  preloadFileMap();
+  checkQueryReady();
+}
+
+// ─── 初始化（页面加载） ───────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  const savedToken = localStorage.getItem('wiki_token');
+  const savedUser = localStorage.getItem('wiki_user');
+  if (savedToken && savedUser) {
+    _token = savedToken;
+    _currentUser = JSON.parse(savedUser);
+    onLoggedIn();
+  }
+});
+
+// ─── Wiki 状态 ────────────────────────────────────────────
+
+async function loadWikiStats() {
+  try {
+    const res = await fetch('/api/wiki-stats');
+    const data = await res.json();
+    document.getElementById('wiki-status').textContent = `知识库共 ${data.total} 个页面`;
+  } catch {
+    document.getElementById('wiki-status').textContent = '知识库连接失败';
+  }
+}
+
+// ─── 动态下拉选项 ─────────────────────────────────────────
+
+async function loadWikiOptions() {
+  try {
+    const data = await apiJSON('/api/wiki-options');
+    populateSelect('q-industry', data.industries);
+    populateSelect('q-hall', data.hall_types);
+    populateSelect('q-project', data.project_types);
+  } catch { /* 保持默认"不限" */ }
+}
+
+function populateSelect(id, options) {
+  const el = document.getElementById(id);
+  el.innerHTML = '<option value="">不限</option>';
+  options.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt; o.textContent = opt;
+    el.appendChild(o);
+  });
+}
+
+// ─── 文件列表预加载 ───────────────────────────────────────
+
+async function preloadFileMap() {
+  try {
+    const files = await apiJSON('/api/files');
+    _fileMap = {};
+    files.forEach(f => { _fileMap[f.stem] = { ext: f.ext, has_pdf: f.has_pdf }; });
+  } catch { /* 不影响主功能 */ }
+}
+
+// ─── Tab 切换 ─────────────────────────────────────────────
+
+function switchTab(tab) {
+  ['query', 'estimation', 'chat'].forEach(t => {
+    document.getElementById(`tab-${t}`).className =
+      t === tab ? 'tab-active py-3 text-sm transition-all' : 'tab-inactive py-3 text-sm transition-all';
+    document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
+  });
+  if (tab === 'estimation') loadEstimationFiles();
+}
+
+// ─── 方案查询 ─────────────────────────────────────────────
+
+function checkQueryReady() {
+  const opp = document.getElementById('q-opportunity').value.trim();
+  document.getElementById('btn-query').disabled = !opp;
+}
+
+async function doQuery() {
+  const btn = document.getElementById('btn-query');
+  const loading = document.getElementById('query-loading');
+  const resultDiv = document.getElementById('query-result');
+
+  // 重置反馈状态
+  _selectedRating = null;
+  _currentUsageLogId = null;
+  document.getElementById('btn-up').classList.remove('selected');
+  document.getElementById('btn-down').classList.remove('selected');
+  document.getElementById('feedback-comment-area').classList.add('hidden');
+  document.getElementById('feedback-done').classList.add('hidden');
+  document.getElementById('feedback-area').classList.remove('hidden');
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-color:rgba(255,255,255,0.3);border-top-color:white"></div><span>检索中...</span>';
+  loading.classList.remove('hidden');
+  resultDiv.classList.add('hidden');
+
+  try {
+    const payload = {
+      su_name: _currentUser.su_name || '',
+      opportunity_name: document.getElementById('q-opportunity').value.trim(),
+      industry: document.getElementById('q-industry').value || null,
+      hall_type: document.getElementById('q-hall').value || null,
+      project_type: document.getElementById('q-project').value || null,
+      include_competitors: document.getElementById('q-competitors').checked,
+      include_policies: document.getElementById('q-policies').checked,
+      include_credentials: document.getElementById('q-credentials').checked,
+      extra_question: document.getElementById('q-extra').value || null,
+    };
+
+    const data = await apiJSON('/api/query', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    _lastResult = data.result;
+    _currentUsageLogId = data.usage_log_id;
+
+    const html = postProcessResult(marked.parse(data.result));
+    document.getElementById('result-box').innerHTML = html;
+    loading.classList.add('hidden');
+    resultDiv.classList.remove('hidden');
+
+  } catch (e) {
+    loading.classList.add('hidden');
+    resultDiv.classList.remove('hidden');
+    document.getElementById('result-box').innerHTML = `<p class="text-red-500">⚠️ ${e.message}</p>`;
+    document.getElementById('feedback-area').classList.add('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>生成方案素材包`;
+    checkQueryReady();
+  }
+}
+
+function copyResult() {
+  if (_lastResult) {
+    navigator.clipboard.writeText(_lastResult).then(() => {
+      const btn = event.target.closest('button');
+      const orig = btn.innerHTML;
+      btn.textContent = '已复制！';
+      setTimeout(() => btn.innerHTML = orig, 2000);
+    });
+  }
+}
+
+// ─── 结果后处理 ──────────────────────────────────────────
+
+function postProcessResult(html) {
+  // 1. [[FILE:xxx]] → 下载/预览 chip（先处理，避免被下面的规则匹配）
+  html = renderFileChips(html);
+  // 2. 剩余的 [[xxx]] 或 [[xxx/yyy]] → wiki 内部引用标签
+  html = html.replace(/\[\[([^\]]+)\]\]/g, (_, link) => {
+    const name = link.split('/').pop().replace(/_/g, ' ');
+    return `<span class="wiki-ref">🔖 ${name}</span>`;
+  });
+  return html;
+}
+
+// ─── 文件 Chip 渲染 ───────────────────────────────────────
+
+function renderFileChips(html) {
+  return html.replace(/\[\[FILE:([^\]]+)\]\]/g, (_, stem) => {
+    const info = _fileMap[stem] || {};
+    const hasPdf = info.has_pdf;
+    const enc = encodeURIComponent(stem);
+    const fname = `${stem}.${info.ext || 'file'}`;
+
+    let btns = '';
+    if (hasPdf) {
+      btns += `<button onclick="previewBlob('/api/files/${enc}/preview')" style="padding:3px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1d4ed8;font-size:0.75rem;cursor:pointer;font-weight:500;">预览</button>`;
+    }
+    btns += `<button onclick="downloadBlob('/api/files/${enc}','${fname}')" style="padding:3px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;color:#15803d;font-size:0.75rem;cursor:pointer;font-weight:500;">下载</button>`;
+    return `<span style="display:inline-flex;gap:5px;align-items:center;margin:2px 0;">${btns}</span>`;
+  });
+}
+
+// ─── 反馈 ─────────────────────────────────────────────────
+
+function selectRating(val) {
+  _selectedRating = val;
+  document.getElementById('btn-up').classList.toggle('selected', val === 1);
+  document.getElementById('btn-down').classList.toggle('selected', val === -1);
+  document.getElementById('feedback-comment-area').classList.remove('hidden');
+}
+
+function cancelFeedback() {
+  _selectedRating = null;
+  document.getElementById('btn-up').classList.remove('selected');
+  document.getElementById('btn-down').classList.remove('selected');
+  document.getElementById('feedback-comment-area').classList.add('hidden');
+  document.getElementById('feedback-comment').value = '';
+}
+
+async function submitFeedback() {
+  if (!_selectedRating || !_currentUsageLogId) return;
+  try {
+    await apiJSON('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        usage_log_id: _currentUsageLogId,
+        rating: _selectedRating,
+        comment: document.getElementById('feedback-comment').value.trim() || null,
+      }),
+    });
+    document.getElementById('feedback-comment-area').classList.add('hidden');
+    document.getElementById('feedback-done').classList.remove('hidden');
+    document.getElementById('btn-up').disabled = true;
+    document.getElementById('btn-down').disabled = true;
+  } catch (e) {
+    alert('反馈提交失败：' + e.message);
+  }
+}
+
+// ─── 方案概算 Tab ─────────────────────────────────────────
+
+async function loadEstimationFiles() {
+  document.getElementById('estimation-loading').classList.remove('hidden');
+  document.getElementById('estimation-content').classList.add('hidden');
+
+  try {
+    const files = await apiJSON('/api/estimation-files');
+    const grid = document.getElementById('estimation-grid');
+    const emptyEl = document.getElementById('estimation-empty');
+
+    if (files.length === 0) {
+      grid.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+    } else {
+      emptyEl.classList.add('hidden');
+      const categories = ['展厅新建', '展厅升级', '展厅运营'];
+      const catIcons = {'展厅新建':'🏗️','展厅升级':'🔧','展厅运营':'⚡'};
+      const grouped = {};
+      categories.forEach(c => { grouped[c] = []; });
+      files.forEach(f => { if (grouped[f.category]) grouped[f.category].push(f); });
+
+      grid.innerHTML = categories.map(cat => `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <h3 class="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            ${catIcons[cat]} ${cat}
+          </h3>
+          ${grouped[cat].length === 0
+            ? '<p class="text-xs text-gray-400">暂无文件</p>'
+            : grouped[cat].map(f => `
+              <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                <span class="text-sm text-gray-700">${f.display_name}</span>
+                <div class="flex items-center gap-3">
+                  ${f.previewable ? `
+                  <button onclick="window.open('/api/estimation-files/${f.id}/preview','_blank')"
+                    class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    预览
+                  </button>` : ''}
+                  <button onclick="downloadBlob('/api/estimation-files/${f.id}/download','${f.display_name}')"
+                    class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    下载
+                  </button>
+                </div>
+              </div>`).join('')
+          }
+        </div>`).join('');
+    }
+
+    document.getElementById('estimation-loading').classList.add('hidden');
+    document.getElementById('estimation-content').classList.remove('hidden');
+  } catch (e) {
+    document.getElementById('estimation-loading').classList.add('hidden');
+    document.getElementById('estimation-content').classList.remove('hidden');
+    document.getElementById('estimation-grid').innerHTML = `<p class="text-sm text-red-500 col-span-3">加载失败：${e.message}</p>`;
+  }
+}
+
+// ─── 随手问 ───────────────────────────────────────────────
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); doChat(); }
+}
+
+async function doChat() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  const btn = document.getElementById('btn-chat');
+  btn.disabled = true;
+
+  appendMessage('user', message);
+  const thinkingEl = appendMessage('ai', '<div class="spinner-sm"></div> 思考中...');
+
+  try {
+    const data = await apiJSON('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+    thinkingEl.innerHTML = marked.parse(data.result);
+  } catch (e) {
+    thinkingEl.innerHTML = `<span class="text-red-500">⚠️ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function appendMessage(role, text) {
+  const container = document.getElementById('chat-messages');
+  const wrapper = document.createElement('div');
+  wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} fade-in`;
+  const bubble = document.createElement('div');
+  bubble.className = `max-w-[85%] px-4 py-3 text-sm leading-relaxed ${role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`;
+  bubble.innerHTML = role === 'user' ? text : `<div class="chat-bubble-ai">${text}</div>`;
+  wrapper.appendChild(bubble);
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+  return bubble;
+}
+
+// ─── 系统设置 管理后台 ────────────────────────────────────
+
+function openAdmin() {
+  document.getElementById('admin-modal').classList.remove('hidden');
+  switchAdminTab('users');
+}
+
+function closeAdmin() {
+  document.getElementById('admin-modal').classList.add('hidden');
+}
+
+const ADMIN_TABS = ['users', 'sunames', 'estfiles', 'prompt', 'logs'];
+
+function switchAdminTab(tab) {
+  ADMIN_TABS.forEach(t => {
+    document.getElementById(`atab-${t}`).className =
+      t === tab ? 'admin-tab-active w-full text-left px-3 py-2 rounded-lg text-sm transition-all' : 'admin-tab-inactive w-full text-left px-3 py-2 rounded-lg text-sm transition-all';
+    document.getElementById(`apanel-${t}`).classList.toggle('hidden', t !== tab);
+  });
+  // 懒加载各面板数据
+  if (tab === 'users') loadUsers();
+  if (tab === 'sunames') loadSuNames();
+  if (tab === 'estfiles') loadEstFilesAdmin();
+  if (tab === 'prompt') loadPrompt();
+}
+
+// ── 用户管理 ──
+
+async function loadUsers() {
+  try {
+    const users = await apiJSON('/api/admin/users');
+    const tbody = document.getElementById('users-tbody');
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">暂无用户</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td class="font-medium">${u.name}</td>
+        <td>${u.su_name || '—'}</td>
+        <td><span class="${u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role === 'admin' ? '管理员' : '用户'}</span></td>
+        <td>${u.created_at ? u.created_at.slice(0, 10) : '—'}</td>
+        <td>
+          <button onclick="openUserModal(${u.id},'${esc(u.name)}','${esc(u.su_name)}','${u.role}')" class="text-xs text-blue-600 hover:underline mr-2">编辑</button>
+          <button onclick="openPwdModal(${u.id})" class="text-xs text-gray-500 hover:underline mr-2">改密</button>
+          <button onclick="deleteUser(${u.id},'${esc(u.name)}')" class="text-xs text-red-500 hover:underline">删除</button>
+        </td>
+      </tr>`).join('');
+  } catch (e) {
+    document.getElementById('users-tbody').innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-8">${e.message}</td></tr>`;
+  }
+}
+
+async function loadSuNamesForSelect(selectId) {
+  try {
+    const data = await apiJSON('/api/admin/su-names');
+    const sel = document.getElementById(selectId);
+    const current = sel.value;
+    sel.innerHTML = '<option value="">（无）</option>';
+    data.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.name; o.textContent = s.name;
+      sel.appendChild(o);
+    });
+    if (current) sel.value = current;
+  } catch {}
+}
+
+function openUserModal(id, name, su_name, role) {
+  document.getElementById('user-modal').classList.remove('hidden');
+  document.getElementById('user-modal-title').textContent = id ? '编辑用户' : '新增用户';
+  document.getElementById('edit-user-id').value = id || '';
+  document.getElementById('edit-name').value = name || '';
+  document.getElementById('edit-role').value = role || 'user';
+  document.getElementById('user-modal-error').classList.add('hidden');
+
+  // 密码行：仅新增时显示
+  document.getElementById('edit-pwd-row').classList.toggle('hidden', !!id);
+  document.getElementById('edit-pwd').value = '';
+
+  loadSuNamesForSelect('edit-suname').then(() => {
+    if (su_name) document.getElementById('edit-suname').value = su_name;
+  });
+}
+
+function closeUserModal() {
+  document.getElementById('user-modal').classList.add('hidden');
+}
+
+async function saveUser() {
+  const userId = document.getElementById('edit-user-id').value;
+  const name = document.getElementById('edit-name').value.trim();
+  const su_name = document.getElementById('edit-suname').value;
+  const role = document.getElementById('edit-role').value;
+  const pwd = document.getElementById('edit-pwd').value;
+  const errEl = document.getElementById('user-modal-error');
+
+  if (!name) { errEl.textContent = '请输入姓名'; errEl.classList.remove('hidden'); return; }
+  if (!userId && !pwd) { errEl.textContent = '请输入初始密码'; errEl.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('btn-save-user');
+  btn.disabled = true; btn.textContent = '保存中...';
+
+  try {
+    if (userId) {
+      await apiJSON(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, su_name, role }),
+      });
+    } else {
+      await apiJSON('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({ name, su_name, role, password: pwd }),
+      });
+    }
+    closeUserModal();
+    loadUsers();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = '保存';
+  }
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`确定删除用户「${name}」？此操作不可恢复。`)) return;
+  try {
+    await apiJSON(`/api/admin/users/${id}`, { method: 'DELETE' });
+    loadUsers();
+  } catch (e) { alert(e.message); }
+}
+
+// ── 修改密码 ──
+
+function openPwdModal(id) {
+  document.getElementById('pwd-modal').classList.remove('hidden');
+  document.getElementById('pwd-user-id').value = id;
+  document.getElementById('new-pwd').value = '';
+  document.getElementById('pwd-modal-error').classList.add('hidden');
+}
+
+function closePwdModal() {
+  document.getElementById('pwd-modal').classList.add('hidden');
+}
+
+async function savePassword() {
+  const id = document.getElementById('pwd-user-id').value;
+  const pwd = document.getElementById('new-pwd').value;
+  const errEl = document.getElementById('pwd-modal-error');
+
+  if (pwd.length < 6) { errEl.textContent = '密码至少6位'; errEl.classList.remove('hidden'); return; }
+  try {
+    await apiJSON(`/api/admin/users/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ password: pwd }),
+    });
+    closePwdModal();
+    alert('密码已修改');
+  } catch (e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
+}
+
+// ── SU 名称管理 ──
+
+async function loadSuNames() {
+  try {
+    const data = await apiJSON('/api/admin/su-names');
+    const tbody = document.getElementById('sunames-tbody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 py-8">暂无SU名称，请点击右上角添加</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(s => `
+      <tr>
+        <td class="font-medium">${s.name}</td>
+        <td>${s.created_at ? s.created_at.slice(0, 10) : '—'}</td>
+        <td><button onclick="deleteSuName(${s.id},'${esc(s.name)}')" class="text-xs text-red-500 hover:underline">删除</button></td>
+      </tr>`).join('');
+  } catch (e) {
+    document.getElementById('sunames-tbody').innerHTML = `<tr><td colspan="3" class="text-center text-red-400 py-8">${e.message}</td></tr>`;
+  }
+}
+
+async function addSuName() {
+  const input = document.getElementById('new-suname-input');
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    await apiJSON('/api/admin/su-names', { method: 'POST', body: JSON.stringify({ name }) });
+    input.value = '';
+    loadSuNames();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteSuName(id, name) {
+  if (!confirm(`确定删除 SU「${name}」？`)) return;
+  try {
+    await apiJSON(`/api/admin/su-names/${id}`, { method: 'DELETE' });
+    loadSuNames();
+  } catch (e) { alert(e.message); }
+}
+
+// ── 概算文件管理 ──
+
+async function loadEstFilesAdmin() {
+  try {
+    const files = await apiJSON('/api/estimation-files');
+    const tbody = document.getElementById('estfiles-tbody');
+    if (!files.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">暂无文件，请上传</td></tr>';
+      return;
+    }
+    tbody.innerHTML = files.map(f => `
+      <tr>
+        <td class="font-medium">${f.display_name}</td>
+        <td><span class="text-xs bg-gray-100 text-gray-600 rounded px-2 py-0.5">${f.category}</span></td>
+        <td class="text-gray-400 text-xs">${f.filename}</td>
+        <td>${f.created_at ? f.created_at.slice(0, 10) : '—'}</td>
+        <td>
+          <button onclick="openEstFileEdit(${f.id},'${esc(f.display_name)}','${esc(f.category)}')" class="text-xs text-blue-600 hover:underline mr-2">编辑</button>
+          <button onclick="deleteEstFile(${f.id},'${esc(f.display_name)}')" class="text-xs text-red-500 hover:underline">删除</button>
+        </td>
+      </tr>`).join('');
+  } catch (e) {
+    document.getElementById('estfiles-tbody').innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-8">${e.message}</td></tr>`;
+  }
+}
+
+async function uploadEstFile() {
+  const name = document.getElementById('est-name').value.trim();
+  const category = document.getElementById('est-category').value;
+  const fileInput = document.getElementById('est-file');
+  const btn = document.getElementById('btn-est-upload');
+  const msg = document.getElementById('est-upload-msg');
+
+  if (!name || !fileInput.files[0]) { alert('请填写显示名称并选择文件'); return; }
+
+  const formData = new FormData();
+  formData.append('display_name', name);
+  formData.append('category', category);
+  formData.append('file', fileInput.files[0]);
+
+  btn.disabled = true; btn.textContent = '上传中...';
+  msg.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/admin/estimation-files', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${_token}` },
+      body: formData,
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+    document.getElementById('est-name').value = '';
+    fileInput.value = '';
+    msg.textContent = '✓ 上传成功'; msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 3000);
+    loadEstFilesAdmin();
+  } catch (e) {
+    alert('上传失败：' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '上传';
+  }
+}
+
+function openEstFileEdit(id, name, category) {
+  document.getElementById('estfile-edit-modal').classList.remove('hidden');
+  document.getElementById('estfile-edit-id').value = id;
+  document.getElementById('estfile-edit-name').value = name;
+  document.getElementById('estfile-edit-category').value = category;
+}
+
+async function saveEstFileEdit() {
+  const id = document.getElementById('estfile-edit-id').value;
+  const name = document.getElementById('estfile-edit-name').value.trim();
+  const category = document.getElementById('estfile-edit-category').value;
+  if (!name) { alert('显示名称不能为空'); return; }
+  try {
+    await apiJSON(`/api/admin/estimation-files/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ display_name: name, category }),
+    });
+    document.getElementById('estfile-edit-modal').classList.add('hidden');
+    loadEstFilesAdmin();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteEstFile(id, name) {
+  if (!confirm(`确定删除「${name}」？文件将被永久删除。`)) return;
+  try {
+    await apiJSON(`/api/admin/estimation-files/${id}`, { method: 'DELETE' });
+    loadEstFilesAdmin();
+  } catch (e) { alert(e.message); }
+}
+
+// ── 提示词设置 ──
+
+async function loadPrompt() {
+  try {
+    const data = await apiJSON('/api/admin/prompt');
+    document.getElementById('prompt-editor').value = data.prompt;
+    const varList = document.getElementById('prompt-variables');
+    varList.innerHTML = data.variables.map(v => {
+      const parts = v.split('—');
+      return `<li><code>{${parts[0].trim()}}</code> — ${parts[1]?.trim() || ''}</li>`;
+    }).join('');
+  } catch {
+    document.getElementById('prompt-editor').placeholder = '加载失败，请刷新重试';
+  }
+}
+
+async function savePrompt() {
+  const btn = document.getElementById('btn-save-prompt');
+  const msg = document.getElementById('prompt-save-msg');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    await apiJSON('/api/admin/prompt', {
+      method: 'PUT',
+      body: JSON.stringify({ prompt: document.getElementById('prompt-editor').value }),
+    });
+    msg.textContent = '✓ 已保存'; msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 3000);
+  } catch { alert('保存失败'); }
+  finally { btn.disabled = false; btn.textContent = '保存'; }
+}
+
+async function resetPrompt() {
+  if (!confirm('确定恢复默认提示词？当前自定义内容将清除。')) return;
+  try {
+    const data = await apiJSON('/api/admin/prompt', { method: 'DELETE' });
+    document.getElementById('prompt-editor').value = data.prompt;
+    const msg = document.getElementById('prompt-save-msg');
+    msg.textContent = '✓ 已恢复默认'; msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 3000);
+  } catch { alert('恢复失败'); }
+}
+
+// ── 使用记录 ──
+
+async function loadLogs() {
+  const tbody = document.getElementById('logs-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8"><div class="spinner-sm mx-auto"></div></td></tr>';
+  try {
+    const user = document.getElementById('log-filter-user').value;
+    const from = document.getElementById('log-filter-from').value;
+    const to = document.getElementById('log-filter-to').value;
+    const params = new URLSearchParams({ limit: 200 });
+    if (user) params.set('user_name', user);
+    if (from) params.set('date_from', from);
+    if (to) params.set('date_to', to);
+
+    const logs = await apiJSON(`/api/admin/usage-logs?${params}`);
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">无记录</td></tr>';
+      return;
+    }
+    const funcColors = {
+      '方案查询': 'bg-blue-50 text-blue-600',
+      '文件下载': 'bg-orange-50 text-orange-600',
+      '概算文件下载': 'bg-purple-50 text-purple-600',
+    };
+    tbody.innerHTML = logs.map(l => {
+      const ratingIcon = l.rating === 1 ? '👍' : l.rating === -1 ? '👎' : '—';
+      const comment = l.comment ? `<span class="text-gray-400 ml-1" title="${esc(l.comment)}">💬</span>` : '';
+      const fc = funcColors[l.function] || 'bg-gray-100 text-gray-600';
+      // 详情列：方案查询显示商机名称，下载显示文件名
+      const detail = l.opportunity_name || '—';
+      return `<tr>
+        <td class="text-xs text-gray-400">${l.created_at ? l.created_at.slice(0, 16).replace('T', ' ') : '—'}</td>
+        <td>${l.user_name || '—'}</td>
+        <td>${l.su_name || '—'}</td>
+        <td><span class="text-xs ${fc} rounded px-2 py-0.5">${l.function}</span></td>
+        <td class="max-w-[180px] truncate" title="${esc(detail)}">${detail}</td>
+        <td>${ratingIcon}${comment}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-red-400 py-8">${e.message}</td></tr>`;
+  }
+}
+
+// ─── 工具函数 ─────────────────────────────────────────────
+
+function esc(str) {
+  return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

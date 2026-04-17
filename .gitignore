@@ -1,0 +1,57 @@
+# ── 原始材料（涉密 + 体积大）────────────────────────────────
+sources/proposals/
+sources/competitors/
+sources/patents/
+sources/certificates/
+sources/policies/
+!sources/**/.gitkeep
+
+# ── Wiki 知识库内容（公司专有数据，默认不追踪）──────────────
+# 作为通用模板使用时保持注释（wiki/ 保持空目录）
+# 作为公司私有知识库使用时，取消下方注释以追踪 wiki 内容：
+#
+# !wiki/clients/
+# !wiki/industries/
+# !wiki/hall-types/
+# !wiki/solution-types/
+# !wiki/proposal-stages/
+# !wiki/modules/
+# !wiki/competitors/
+# !wiki/credentials/
+# !wiki/policies/
+# !wiki/canvases/
+# !wiki/index.md
+# !wiki/log.md
+# !wiki/_dashboard.md
+
+wiki/clients/
+wiki/industries/
+wiki/hall-types/
+wiki/solution-types/
+wiki/proposal-stages/
+wiki/modules/
+wiki/competitors/
+wiki/credentials/
+wiki/policies/
+wiki/canvases/
+wiki/archive/
+wiki/index.md
+wiki/log.md
+wiki/_dashboard.md
+!wiki/**/.gitkeep
+!wiki/archive/README.md
+
+# ── wiki-app 运行时产生的文件 ────────────────────────────────
+wiki-app/.env
+wiki-app/data.db
+wiki-app/estimation-files/
+wiki-app/source-files/
+wiki-app/wiki/
+!wiki-app/wiki/.gitkeep
+
+# ── 系统文件 ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+*.pyo
