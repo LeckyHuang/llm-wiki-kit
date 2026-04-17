@@ -1,7 +1,7 @@
 # Ingest 操作提示词
 
 > **适用路径**：AI 直接操作路径（Claude/Cursor）。  
-> 本 prompt 与 Web 应用路径（wiki-app）并行，变更查询逻辑后需同步评估对方路径，并在 `wiki/log.md` 中记录。
+> wiki 知识层不感知下游应用，Ingest 结果由各下游应用按需消费。变更后在 `wiki/log.md` 记录即可。
 
 将以下内容粘贴给 LLM，替换 `[文件路径]` 后执行。
 
@@ -37,12 +37,18 @@
 - 按 Sheet2 字段清单提取所有字段
 - 写入完整 frontmatter，version: v1，status: active
 - sources 字段填入当前文件名
+- 若文件为多媒体类型（视频/图片/HTML/PPT 等），在 frontmatter 中写入 assets 字段（type/label/path/url/description）
+- 若 Sheet2 定义了 scenarios 字段，根据实体类型和内容填写适用场景标签
+- 若同时提供了人工补充材料（sources/annotations/ 下的讲解词、问答对等），
+  按 §2.2 正文分区约定写入对应 [type] 分区（[narration]/[qa]/[training] 等）
 
 【步骤 3b — 已存在：版本比对与更新】
 - 逐字段对比新旧值
 - 有差异的字段：新值写入正文，旧值移入 history: 块（标注来源文件）
 - 无差异的字段：保持不变
 - sources 列表追加当前文件名（不覆盖旧记录）
+- assets 列表追加新资产，不覆盖已有条目（同 path/url 则更新 description）
+- 若提供了新的人工补充材料，更新对应 [type] 分区内容，旧版本移入 history 块
 - version 递增（v1→v2→v3）
 
 【步骤 4：更新关联页面】

@@ -1,6 +1,6 @@
-# company-wiki 演进路线图
+# llm-wiki-kit 演进路线图
 
-> 本文档记录 company-wiki 知识库系统从初始框架到完整知识中台的分阶段演进计划。  
+> 本文档记录 llm-wiki-kit 知识库系统从初始框架到完整知识中台的分阶段演进计划。  
 > 每个版本独立可交付，上一版本是下一版本的前提。  
 > 最后更新：2026-04-17
 
@@ -8,11 +8,12 @@
 
 ## 愿景
 
-构建一套**工具无关、领域可配置、自我进化**的企业级 LLM Wiki 知识管理系统：
+构建一套**工具无关、领域可配置、应用解耦、自我进化**的企业级 LLM Wiki 知识基础设施：
 
-- 企业提供原始材料（sources/）和领域配置（Schema），系统生长出对应的知识库
+- 企业提供原始材料（sources/）和领域配置（domain-config.xlsx），系统生长出对应的结构化知识库
 - 知识库不只存储结构化事实，还索引多媒体资产、追踪知识时效、区分内外部来源
-- 最终支撑从"知识沉淀"到"生产级方案输出"的完整闭环
+- **wiki 是纯粹的知识输出层，不绑定任何下游应用**——同一套知识库可同时驱动：方案生产、AI 策展、智能问答、AI 陪练等完全不同的 AI 应用场景
+- 各下游应用通过标准的 Frontmatter 字段（`type`/`scenarios`/`assets`/`status`）自行定义消费逻辑，新增应用无需修改 wiki 层任何文件
 
 ---
 
@@ -22,9 +23,10 @@
 |------|------|----------|------|
 | v0.1 | Bootstrap | 框架初始化（已完成） + 首批 47 份方案入库 + wiki-app 生产部署 | ✅ 已完成 |
 | v1.0 | Foundation | 通用化 + 版本管控 + 知识生命周期 | ✅ 已完成 |
+| v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区约定 | ✅ 已完成 |
 | v2.0 | Intelligence | 自发现字段 + 冲突澄清 + 反馈反哺 | 🔲 待启动 |
 | v2.5 | Graph Layer | 知识图谱关系层（Graphify 集成） | 🔲 待启动 |
-| v3.0 | Expansion | 多媒体资产 + 外脑机制 + 自动触发 | 🔲 待启动 |
+| v3.0 | Expansion | 多媒体资产深化 + 外脑机制 + 自动触发 | 🔲 待启动 |
 | v4.0 | Production | 方案生产闭环（md→html→PPT） | 🔲 待启动 |
 
 ---
@@ -199,9 +201,41 @@ superseded_by: policies/xxx-new-policy.md   # 可选
 
 ### 遗留说明
 
-- **Schema 通用性边界**：AI 直接操作路径（prompts/）已完全通用；wiki-app 的目录名（`industries/`、`hall-types/`）为硬编码，对同类 B2B 知识库可直接复用，跨度过大的领域需改 app.py 和前端
-- **服务端 Ingest**：当前仍为本地操作，server-side Ingest pipeline 规划入 v3.0；阶段性方案见 ROADMAP v3.0 §3.3（可按"文件上传→触发 Ingest→自动写 wiki/"路径分3步落地）
+- ~~**Schema 通用性边界**：wiki-app 的目录名为硬编码，跨度过大的领域需改 app.py~~ → **已在 v1.1 通过下游扩展协议解决**，wiki 层不再感知任何下游应用
+- **服务端 Ingest**：当前仍为本地操作，server-side Ingest pipeline 规划入 v3.0；阶段性方案见 ROADMAP v3.0 §3.3
 - **旧页面 entity_id 补全**：现有客户案例页缺少 entity_id / version 字段，下次对该文件重新 Ingest 时顺手补充即可
+
+---
+
+## v1.1 Decouple — 已完成
+
+### 目标
+
+将 wiki 从"方案生产专用知识库"重新定位为**可驱动任意 AI 应用的知识基础设施**，通过最小改动实现架构级解耦。
+
+### 核心变更
+
+**SCHEMA-CORE.md 更新（v1.1）**
+
+- **§二.1 Frontmatter 新增两个可选字段**：
+  - `assets[]`：资产引用列表，每条含 `type / label / path / url / description`，供下游应用直接消费文件或链接（与 `sources` 的区别：`sources` 是摄入溯源，`assets` 是可交付的资产引用）
+  - `scenarios[]`：场景标签，标注该实体适用的下游场景（如 `[方案生产, AI策展, 智能问答]`），供下游快速过滤
+
+- **新增 §二.2 正文分区约定**：用 `## [type] 标题` 格式定义可选的类型化正文分区（`[summary]` / `[narration]` / `[qa]` / `[training]` 等），下游应用按需提取对应分区，互不干扰，类型可自由扩展
+
+- **§三 从"双路径同步规则"改为"下游扩展协议"**：
+  - wiki 不感知任何下游应用的存在
+  - 新增下游应用无需修改 wiki 任何文件
+  - 下游应用自行定义加载目录、过滤字段、消费分区、资产处理逻辑
+  - 唯一强制约束：生命周期过滤（`archived` 完全排除，`outdated` 降权提示）
+
+**目录补充**：`sources/media/`（多媒体原件）、`sources/annotations/`（人工补充材料，可选）
+
+**prompts/ 更新**：`ingest.md` 和 `query.md` 去除 wiki-app 耦合引用；`query.md` 新增通用查询模板和 AI 策展配屏专用模板
+
+### 对现有部署的影响
+
+**wiki-app 零改动**——代码分析确认：`_read_wiki_file()` 只读 `status` 字段，新增的 `assets`/`scenarios` 以原始文本传入 LLM 上下文，不触发任何解析逻辑；新增的 `sources/media/` 和 `sources/annotations/` 目录在 `sources/` 下，`load_wiki()` 不会加载。
 
 ---
 
@@ -484,43 +518,34 @@ v2.5 无需等待 v2.0 全部完成，当以下任一条件满足时应优先启
 
 大幅扩展知识库的"感知范围"：向内打通多媒体资产索引，向外接入互联网知识补充，向下实现变更自动触发。
 
-### 3.1 多媒体资产索引
+### 3.1 多媒体资产深化
 
-**问题**：方案文件中的图表、效果图、架构图、案例视频等是极高价值的素材，但当前系统完全无法索引和检索。
+> **v1.1 已完成基础层**：`assets[]` 字段已写入 SCHEMA-CORE.md Frontmatter 标准，每个实体可直接携带资产引用（type/label/path/url/description）。`sources/media/` 目录已建立。
 
-**方案**：Ingest 时增加资产登记步骤：
+**v3.0 补充的深化工作**：基础引用已有，v3.0 解决大规模资产管理中出现的新问题。
 
-每份 source 文件 Ingest 时，同步生成一个资产清单文件：
+**问题（v3.0 视角）**：随着资产数量增长（数十到数百个），需要跨实体的资产检索能力——"找所有 architecture-diagram 类型的资产"这类查询，仅靠逐页读取 Frontmatter 效率低。
+
+**方案**：建立独立的资产索引文件（作为 Frontmatter assets 字段的聚合视图）：
 
 ```
-sources/proposals/2024-广州移动展厅-最终方案.pdf
-→ wiki/assets/2024-guangzhou-mobile-assets.md
+wiki/assets/index.md    # 全库资产聚合索引，由 Lint 自动维护
 ```
 
-资产清单格式：
+索引格式：
 ```markdown
----
-source: proposals/2024-广州移动展厅-最终方案.pdf
-entity_id: proj-2024-telecom-guangzhou-01
----
-
-## 图表资产
-
-| 资产ID | 类型 | 描述 | 页码/时间码 | 适用场景 |
-|--------|------|------|-----------|---------|
-| asset-001 | architecture-diagram | 系统整体架构图 | P12 | 系统方案章节 |
-| asset-002 | floor-plan | 展厅平面布局图 | P18 | 空间设计章节 |
-| asset-003 | photo | 竣工实景照片×6 | P35-40 | 案例展示 |
-| asset-004 | flow-diagram | 内容运营流程图 | P22 | 运营方案章节 |
+| 资产ID | 实体 | 类型 | 描述 | 路径/URL |
+|--------|------|------|------|---------|
+| exhibit-2024-...-01#video-01 | 5G工厂展项 | video | 3分钟介绍视频 | cdn.../5g.mp4 |
 ```
 
-Query 时可按资产类型筛选：`资产类型:architecture-diagram 行业:运营商`，返回匹配的资产列表及其所在原始文件位置。
+此索引不替代 Frontmatter 中的 `assets` 字段，而是它的聚合查询视图，由 Lint 扫描全库自动生成和更新。
 
 **交付物**
-- [ ] 定义资产类型枚举（architecture-diagram / floor-plan / photo / flow-diagram / scan / video / other）
-- [ ] 更新 ingest.md，加入资产登记步骤
-- [ ] 创建 wiki/assets/ 目录
-- [ ] 更新 query.md，支持按资产类型检索
+- [ ] 定义 wiki/assets/index.md 格式规范
+- [ ] 更新 lint.md，加入资产索引自动聚合步骤
+- [ ] 在 domain-config.xlsx Sheet2 中完善 assets.type 枚举值（video / image / html / ppt / pdf / excel / link / diagram / photo 等）
+- [ ] 更新 query.md，支持按资产类型跨实体检索
 
 ---
 
@@ -707,6 +732,7 @@ lint:
 | LINT | 健康检查 | v0.1 |
 | VERSION-UPDATE | 版本覆盖更新 | v1.0 |
 | ARCHIVE | 知识归档 | v1.0 |
+| SCHEMA-UPDATE | Schema 或规则变更通知 | v1.1 |
 | FEEDBACK | 交互反馈反哺 | v2.0 |
 | GRAPH-UPDATE | 图谱增量刷新 | v2.5 |
 | EXTERNAL-INGEST | 外部知识摄入 | v3.0 |
@@ -731,6 +757,13 @@ company-wiki/
 │   └── lint.md
 │
 ├── sources/                # 内部原始材料（不进 git）
+│   ├── proposals/
+│   ├── competitors/
+│   ├── patents/
+│   ├── certificates/
+│   ├── policies/
+│   ├── media/              # 多媒体资产原件  v1.1 新增
+│   └── annotations/        # 人工补充材料（可选）  v1.1 新增
 ├── world-sources/          # 外部原始材料（不进 git）
 ├── outputs/                # 生成物（不进 git）
 │   ├── drafts/
@@ -768,16 +801,19 @@ company-wiki/
 
 ## 下一步行动
 
-**当前最优先**：在公司电脑上完成第一批 Ingest（激活 wiki 内容），同时启动 v1.0 的 Schema 通用化改造。只有 wiki 中有真实内容，后续版本的机制才有验证土壤。
+**当前状态（2026-04-17）**：v0.1 ~ v1.1 均已完成。知识核心层架构稳定，wiki-app 生产运行正常。
 
+**验收优先（v1.0/v1.1 遗留）**：
 ```
-立即可做：
-1. git clone 至公司电脑
-2. 将 50+ 份历史方案放入 sources/proposals/
-3. 执行第一批 Ingest（优先运营商行业 3-4 份）
-4. 观察 wiki/ 生成的内容，评估 Schema 的提取质量
+1. 用非展厅行业的 domain-config.xlsx 完成一次 Ingest，验证通用化效果
+2. 对同一项目执行两次 Ingest（不同版本），验证版本管控和 history 块
+3. Ingest 一个带资产引用的实体，验证 assets 字段写入和 scenarios 标签
+4. 执行 Lint 检测，验证生命周期检测和归档建议
+```
 
-并行启动 v1.0：
-5. 重构 SCHEMA.md → SCHEMA-CORE.md
-6. 制作 domain-config.xlsx 模板并填写展厅行业配置
+**下一版本启动条件**：
+```
+v2.0 启动：wiki 内容积累到可验证"自发现字段"价值时（建议 100+ 页）
+v2.5 提前触发：clients/ 体积超过 400K，或频繁出现 [内容已截断] 提示
+v3.0 启动：有明确的多媒体资产批量接入需求（展厅策展等应用上线前置）
 ```

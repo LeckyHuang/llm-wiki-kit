@@ -1,9 +1,10 @@
 # SCHEMA-CORE — 通用核心规则
 
-本文件是 company-wiki 知识库系统的**通用规则层**，与任何行业领域无关。  
+本文件是 company-wiki 知识库系统的**通用规则层**，与任何行业领域、任何下游应用均无关。  
 行业枚举、字段清单、关联关系等**领域配置**均存放在 `schema/domain-config.xlsx`。
 
-> 上一版本：`SCHEMA.md`（v0.1，硬编码展厅行业）→ 已重构为本文件 + domain-config.xlsx（v1.0）
+> 上一版本：`SCHEMA.md`（v0.1，硬编码展厅行业）→ v1.0 重构为本文件 + domain-config.xlsx  
+> 当前版本：v1.1，新增资产引用、场景标签、正文分区约定，§三改为下游扩展协议
 
 ---
 
@@ -16,6 +17,8 @@ sources/                    # 原始材料（只读，不修改，不进 git）
   patents/                  # 发明专利文件
   certificates/             # 资质证书文件
   policies/                 # 行业政策文件
+  media/                    # 多媒体资产（视频、图片、HTML、PPT 等，按需创建子目录）
+  annotations/              # 人工补充材料（讲解词、问答对、陪练脚本等，可选）
 
 schema/                     # Schema 定义层（进 git）
   SCHEMA-CORE.md            # 本文件：通用规则
@@ -54,20 +57,66 @@ created: YYYY-MM-DD
 updated: YYYY-MM-DD
 status: active | outdated | archived
 
-# ── v1.0 新增字段 ──────────────────────────
+# ── 通用身份字段 ───────────────────────────
 entity_id: <类型前缀>-<年份>-<行业缩写>-<地点缩写>-<序号>
 # 示例：client-2024-telecom-guangzhou-01
 version: v1
 sources:
-  - proposals/文件名.pdf   # 按版本追加，不覆盖
+  - proposals/文件名.pdf   # 摄入来源，按版本追加，不覆盖
+
+# ── v1.1 新增：资产引用 ───────────────────
+# 可选。下游应用从此字段获取可直接使用的文件/链接。
+# 与 sources 的区别：sources 是摄入溯源，assets 是可交付的资产引用。
+assets:
+  - type: video            # video | image | html | ppt | pdf | excel | link
+    label: 资产名称          # 供人工和 LLM 识别
+    path: sources/media/文件名.mp4    # 本地路径（可选）
+    url: https://...                  # 远程 URL（可选，path 和 url 至少提供一个）
+    description: 一句话描述该资产的内容和适用场合
+
+# ── v1.1 新增：场景标签 ───────────────────
+# 可选。标注该实体适用的下游场景，供下游应用快速过滤。
+# 枚举值由 domain-config.xlsx Sheet2 的 scenarios 列定义，可自由扩展。
+scenarios: [场景A, 场景B]
+# 示例：[方案生产, AI策展, 智能问答, AI陪练]
 ---
 ```
 
 - `status: outdated` — 内容可能过时，Query 时降权提示，不自动排除
 - `status: archived` — 已确认过时，移入 `wiki/archive/`，**不参与任何 Query**
+- `assets` 和 `scenarios` 均为可选字段，没有则省略，不填空数组
 - 每次修改必须更新 `updated` 字段
 
-### 2.2 Version History 块（可选）
+### 2.2 正文分区约定（可选）
+
+wiki 页面正文可包含若干**类型化分区**，格式为带类型标签的二级标题：
+
+```markdown
+## [summary] 内容摘要
+（LLM 摄入时生成的结构化摘要，通用，所有下游场景均可消费）
+
+## [narration] 讲解词
+（人工整理的演讲/导览词，适合 AI 策展、数字人场景）
+
+## [qa] 问答对
+（结构化 Q&A，适合智能问答场景）
+Q: ...
+A: ...
+
+## [training] 陪练脚本
+（角色扮演或话术训练脚本，适合 AI 陪练场景）
+```
+
+**约定规则：**
+- 类型标签小写，放在 `##` 标题最前方的方括号内
+- 下游应用按需扫描特定类型的分区，忽略不需要的分区
+- 所有分区均为可选，缺失不影响其他分区和 Frontmatter 的有效性
+- 类型标签枚举不做硬约束，可按业务需要自由扩展
+- 人工补充的分区来源文件统一放入 `sources/annotations/`，Ingest 时按需写入
+
+---
+
+### 2.3 Version History 块（可选）
 
 当页面经历过版本更新时，在 frontmatter 后追加：
 
@@ -83,7 +132,7 @@ history:
       - field_name: 旧值（来自 sources/新文件名.pdf）
 ```
 
-### 2.3 entity_id 命名规则
+### 2.4 entity_id 命名规则
 
 ```
 格式：{type_prefix}-{year}-{industry_abbr}-{city_abbr}-{seq:02d}
@@ -100,29 +149,40 @@ history:
 
 ---
 
-## 三、双路径同步规则（Query 路径）
+## 三、下游扩展协议
 
-系统存在两条并行的 Query 路径，每次变更任一路径的查询逻辑时，必须同步评估另一路径：
+### 3.1 设计原则
 
-| 路径 | 入口 | 适用场景 | 过滤逻辑所在层 |
-|------|------|----------|--------------|
-| AI 直接操作 | `prompts/query.md` | Claude/Cursor 直接读写 wiki | Prompt 文字规则 |
-| Web 应用 | `wiki-app/app.py` `/api/query` | 生产环境前端用户 | 后端代码硬过滤 |
+**wiki 是纯粹的知识输出层，不感知任何下游应用的存在。**
 
-**同步清单**（每次变更时对照）：
-1. 新增过滤维度 → 两侧都要加
-2. 调整加载目录 → 两侧都要调
-3. 修改输出格式 → 两侧都要改
-4. 变更操作后在 `wiki/log.md` 记录变更类型（参见日志格式规范）
+- wiki 只负责：结构化存储知识、维护版本和生命周期、输出标准格式的 Frontmatter + 正文
+- 下游应用只负责：定义自己的过滤逻辑、消费所需的字段和分区、不向 wiki 层写入任何约束
+- 两者之间的唯一契约：本 SCHEMA-CORE.md 定义的字段格式和分区约定
 
-**已实现的 wiki-app 硬过滤**（截至 v1.0）：
-- ✅ 行业维度：INDUSTRY_MAP 精准映射到子目录
-- ✅ 展厅类型：HALL_MAP 精准映射
-- ✅ 勾选控制：competitors / policies / credentials 按需加载
-- ✅ clients 与 credentials 解耦，独立控制
-- ✅ 随手问（/api/chat）不加载 clients，字符上限收紧
-- ✅ `status: archived` 页面不进入 Query 上下文
-- ✅ `status: outdated` 页面带 ⚠️ 提示后仍参与 Query
+这意味着：新增一个下游应用，**不需要修改 wiki 任何文件**；wiki 字段新增或变更，下游应用在自己的节奏内适配。
+
+### 3.2 下游应用接入契约
+
+任何下游应用在接入 wiki 时，应自行定义：
+
+| 决策点 | 说明 | 示例 |
+|--------|------|------|
+| **加载哪些目录** | 根据应用场景选择 wiki/ 子目录 | 策展应用只加载 `exhibits/`；方案应用加载多个目录 |
+| **按哪些字段过滤** | 从 Frontmatter 字段中选择过滤维度 | 按 `scenarios`、`industry`、`type`、`status` 过滤 |
+| **消费哪些正文分区** | 按 `[type]` 标签提取所需分区 | 问答应用提取 `[qa]` 分区；策展应用提取 `[narration]` |
+| **如何处理资产** | 从 `assets` 字段获取文件路径或 URL | 策展应用读取 `assets[].url` 组装播放序列 |
+| **生命周期过滤** | 必须遵守：`archived` 不参与；`outdated` 可降权 | 所有下游应用均须实现此规则 |
+
+### 3.3 生命周期过滤（所有下游必须实现）
+
+无论何种下游应用，以下规则不可绕过：
+
+- `status: archived` — **完全排除**，不得出现在任何应用的上下文中
+- `status: outdated` — 可使用，但必须向用户标注该内容存在过期风险
+
+### 3.4 wiki 层变更通知规则
+
+当 SCHEMA-CORE.md 或 domain-config.xlsx 发生变更时，在 `wiki/log.md` 记录变更摘要（操作类型：`SCHEMA-UPDATE`），供各下游应用团队参考适配，无需逐一同步。
 
 ---
 
