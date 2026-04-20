@@ -2,7 +2,7 @@
 
 > 本文档记录 llm-wiki-kit 知识库系统从初始框架到完整知识中台的分阶段演进计划。  
 > 每个版本独立可交付，上一版本是下一版本的前提。  
-> 最后更新：2026-04-17
+> 最后更新：2026-04-20
 
 ---
 
@@ -15,19 +15,31 @@
 - **wiki 是纯粹的知识输出层，不绑定任何下游应用**——同一套知识库可同时驱动：方案生产、AI 策展、智能问答、AI 陪练等完全不同的 AI 应用场景
 - 各下游应用通过标准的 Frontmatter 字段（`type`/`scenarios`/`assets`/`status`）自行定义消费逻辑，新增应用无需修改 wiki 层任何文件
 
+### 普适性原则（核心约束）
+
+**llm-wiki-kit 的持续生命力来自普适性**。每一个设计决策都必须回答：「换一个行业的 domain-config.xlsx，这个机制还能工作吗？」
+
+这意味着：
+
+- **SCHEMA-CORE.md 只定义机制，不定义业务语义**——实体类型、字段名称、枚举值、经验分类、事件维度，全部在 domain-config.xlsx 中由使用者定义
+- **示例只是示例**——ROADMAP 中出现的"展厅"、"接待活动"、"方案阶段"等，是当前最熟悉的参考场景，不是系统边界
+- **下游扩展不侵入知识层**——应用层适配（wiki-app、AI 策展、陪练系统）的特殊性只在应用层解决，永远不向 wiki 层写入任何绑定逻辑
+- **每一个新版本在设计时，同步考虑至少两个不同行业的适用性验证**（展厅行业 + 另一参照领域），以防设计过度具体化
+
 ---
 
 ## 版本全景
 
 | 版本 | 代号 | 核心主题 | 状态 |
 |------|------|----------|------|
-| v0.1 | Bootstrap | 框架初始化（已完成） + 首批 47 份方案入库 + wiki-app 生产部署 | ✅ 已完成 |
+| v0.1 | Bootstrap | 框架初始化 + 首批方案入库 + wiki-app 生产部署 | ✅ 已完成 |
 | v1.0 | Foundation | 通用化 + 版本管控 + 知识生命周期 | ✅ 已完成 |
 | v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区约定 | ✅ 已完成 |
-| v2.0 | Intelligence | 自发现字段 + 冲突澄清 + 反馈反哺 | 🔲 待启动 |
-| v2.5 | Graph Layer | 知识图谱关系层（Graphify 集成） | 🔲 待启动 |
-| v3.0 | Expansion | 多媒体资产深化 + 外脑机制 + 自动触发 | 🔲 待启动 |
-| v4.0 | Production | 方案生产闭环（md→html→PPT） | 🔲 待启动 |
+| v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | 🔲 待启动 |
+| v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | 🔲 待启动 |
+| v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | 🔲 待启动 |
+| v3.0 | Expansion | 外脑机制 + 自动触发 + 服务端流水线 | 🔲 待启动 |
+| v4.0 | Production | 方案生产闭环（md→html→PPT）| ⏸ 暂缓，应用层决策 |
 
 ---
 
@@ -239,13 +251,17 @@ superseded_by: policies/xxx-new-policy.md   # 可选
 
 ---
 
-## v2.0 Intelligence — 自发现字段 + 冲突澄清 + 反馈反哺
+## v2.0 Intelligence — Schema 自进化：自发现字段 + 冲突澄清
 
 ### 目标
 
-让系统从"被动执行指令"升级为"主动学习和自我修正"：Ingest 能发现 Schema 未覆盖的知识维度，冲突知识能触发人工裁决，Query 中的用户修正能反向更新 wiki。
+让系统的**知识结构**能够自我进化：Ingest 能主动发现 domain-config 未覆盖的有价值字段，对同一实体的矛盾描述能触发人工裁决，而不是静默覆盖。
 
-### 2.1 Ingest 自发现字段
+> **与 v2.1 的分工**：v2.0 解决"wiki 的结构和 Schema 如何越来越准确"，v2.1 解决"wiki 的内容如何从运营中持续积累"。两者都是知识自进化，但来源和机制不同。
+
+> **普适性说明**：自发现字段和冲突检测是通用机制，与行业无关。domain-config.xlsx 的进化方向由企业自己决定，系统只负责发现候选项并等待人工确认。
+
+### 2.0.1 Ingest 自发现字段
 
 **问题**：企业的 domain-config.xlsx 不可能穷举所有有价值的字段，大量隐性知识被遗漏。
 
@@ -279,7 +295,7 @@ superseded_by: policies/xxx-new-policy.md   # 可选
 
 ---
 
-### 2.2 冲突检测与澄清机制
+### 2.0.2 冲突检测与澄清机制
 
 **问题**：不同来源对同一实体的描述可能截然相反（如两份方案对某竞品的评价完全矛盾），直接覆盖会丢失信息，两者并存又造成混乱。
 
@@ -318,405 +334,559 @@ Type C - 逻辑矛盾（A说X是优势，B说X是劣势）
 
 ---
 
-### 2.3 交互反馈反哺 Wiki
+### v2.0 里程碑验收标准
 
-**问题**：Query 生产方案的过程中，用户的每一次修改（"这个说法不对"、"实际上我们在这个行业的强项是X"）都是高价值知识，但目前全部流失。
+- [ ] Ingest 一份新方案后，能在 `wiki/schema-suggestions.md` 中看到至少 3 条有价值的自发现字段建议
+- [ ] 对同一实体的矛盾描述，`wiki/pending-clarifications.md` 能正确捕获并分类呈现
+- [ ] 用一份非展厅行业的 domain-config.xlsx 完成 Ingest，自发现字段机制同样生效（通用性验证）
 
-**方案**：在 query.md 末尾增加"反馈捕获"环节：
+---
 
-Query 会话结束时，LLM 自动总结本次交互中发生的修正，提示用户确认：
+## v2.1 Experience — 经验知识体系
+
+### 目标
+
+建立从**运营实践**到**知识库**的反哺回路，使 wiki 不再只是静态文档的结构化副本，而是随着真实使用持续自我增益的活体知识库。
+
+v2.1 解决两类知识来源，这两类来源在**任何行业**都普遍存在：
+
+| 来源类型 | 行业无关的通用描述 | 展厅行业参照示例 |
+|---------|-----------------|--------------|
+| **结构化事件报告** | 业务活动完成后生成的过程记录，涵盖执行维度、参与方、实际反馈 | 每次接待活动后的三份过程报告（拾音分析 + 展项数据） |
+| **对话式知识捕获** | 日常操作中产生的即时修正、偏好反馈、知识补充 | 日常 query 时发现的说法纠偏、客户偏好更新 |
+
+> **普适性说明**：展厅行业的"接待活动"对应法律行业的"案件结案回顾"、医疗行业的"术后复盘"、软件行业的"迭代回顾"。事件的维度和分区类型在 domain-config.xlsx 中配置，SCHEMA-CORE.md 只定义通用机制。
+
+---
+
+### 2.1.1 experience 实体类型
+
+**新增 wiki 实体类型：`experience`**，存放于 `wiki/experiences/` 目录。
+
+与现有实体类型的核心区别：
+- `client` / `module` / `industry` 等是**静态描述型**——描述某事物是什么
+- `experience` 是**动态事件型**——记录某件事发生了什么，带时间戳，有主观观察
+
+**通用 Frontmatter 模板**：
+
+```yaml
+---
+title: <事件标题>
+type: experience
+entity_id: exp-{year}-{event_type_abbr}-{seq:02d}
+subtype: <来自 domain-config.xlsx Experience Sheet 的枚举>
+event_date: YYYY-MM-DD
+status: active
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+
+# 事件维度（由 domain-config.xlsx 定义，非硬编码）
+# 各行业自行在 domain-config 中定义本行业的事件维度名称
+dimensions:
+  dimension_1_key: value     # 例：exhibition hall → theme_packages: [AI体验主题]
+  dimension_2_key: value     # 例：law firm → practice_area: 知识产权
+  dimension_3_key: value
+
+# 关联的 wiki 实体（本次事件涉及的实体）
+subject:
+  - clients/某客户实体.md
+  - modules/某功能模块.md
+
+# 资产引用（v2.1 新增：事件中实际使用的资产）
+exhibited_assets:           # 字段名可在 domain-config 中自定义
+  - type: video
+    label: 某视频名称
+    path: sources/media/某视频.mp4
+
+sources:
+  - reports/YYYY-MM-DD-事件报告.pdf
+---
+```
+
+**entity_id 规则**：`exp-{year}-{subtype_abbr}-{seq:02d}`，其中 `subtype_abbr` 取自 domain-config.xlsx Experience Sheet 的缩写列。
+
+---
+
+### 2.1.2 domain-config.xlsx 扩展
+
+v2.1 在 domain-config.xlsx 中新增两个配置 Sheet：
+
+**Sheet：Experience Types（经验类型表）**
+
+| 子类型名 | 缩写 | 触发条件 | 核心维度字段 | 适用分区类型 |
+|---------|------|---------|------------|------------|
+| 接待活动报告 | session | 每次接待结束后 | 专场类型/主题包/展项/客户层级 | visitor-insights / narration-record / qa-record |
+| 运营月报 | monthly | 每月定期 | 统计周期/核心指标 | data-summary / trend-analysis |
+| 经验沉淀 | lesson | 人工主动触发 | 适用场景/问题类型 | lesson / recommendation |
+
+> 这是展厅行业的示例填法。其他行业替换行内容即可，机制不变。
+
+**Sheet：Experience Section Types（经验分区类型表）**
+
+| 分区标签 | 含义 | 来源机制 | 适用 subtype |
+|---------|------|---------|------------|
+| `[visitor-insights]` | 参与方的关注点与反应 | 拾音分析/人工记录 | session |
+| `[narration-record]` | 实际执行的讲解/陈述内容 | 拾音分析/录音转写 | session |
+| `[qa-record]` | 现场问答实录 | 拾音分析/人工记录 | session |
+| `[data-summary]` | 数据汇总与指标 | 系统数据导出 | monthly |
+| `[lesson]` | 经验总结与规律 | 人工沉淀 | lesson |
+| `[recommendation]` | 行动建议 | 人工沉淀 | lesson |
+
+> 分区标签是对 v1.1 正文分区约定的延伸扩展。v1.1 定义了 `[summary]` / `[narration]` / `[qa]` / `[training]`，v2.1 新增 experience 专用分区。所有分区类型均为开放枚举，可按业务需要在 domain-config 中自由扩展。
+
+---
+
+### 2.1.3 双路径摄入机制
+
+**路径 A：结构化事件报告摄入（新增 prompts/ingest-experience.md）**
+
+事件报告（如接待活动报告、月度运营报告）是机器或系统生成的结构化文件，摄入逻辑与普通方案文件不同：
+
+```
+Ingest Experience 流程：
+
+步骤 0：读取 domain-config.xlsx Experience Sheet
+  - 确认本报告对应的 subtype
+  - 加载该 subtype 的维度字段清单和适用分区类型
+
+步骤 1：提取事件 Frontmatter
+  - event_date（事件发生时间，非文件创建时间）
+  - 按 domain-config 定义的维度字段逐项提取
+  - 关联 wiki 实体（subject 字段）：匹配报告中提及的现有 wiki 条目
+
+步骤 2：提取正文分区
+  - 按该 subtype 的适用分区类型提取对应内容
+  - 每个分区内容要求：具体、可引用，不做主观评价
+
+步骤 3：写入 wiki/experiences/{subtype}/
+  - 新建 experience 实体页面
+  - 写入 log.md（操作类型：EXPERIENCE-INGEST）
+
+步骤 4：触发跨实体增益（见 §2.1.4）
+```
+
+**路径 B：对话式知识捕获（升级 prompts/query.md）**
+
+在 query.md 末尾增加轻量反馈捕获环节。与路径 A 的区别是：这里捕获的是**对话过程中发现的偏差和修正**，而非系统报告。
+
+Query 会话结束时，LLM 识别并汇总本次交互中出现的知识修正，提示用户确认：
 
 ```markdown
 ## 本次查询反馈捕获
 
-以下修正被记录，请确认是否回写至 wiki：
+以下内容在本次查询中产生了修正或补充，请确认处理方式：
 
-1. [知识修正] 运营商行业-系统方案-核心卖点
-   原值："统一管理平台"
+1. [知识修正] 指向实体：modules/某功能模块.md
+   原描述："统一管理平台"
    修正为："端到端自主可控"
-   → [ ] 确认更新  [ ] 仅本次有效，不更新
+   → [ ] 直接更新 wiki（写入 history 块）
+   → [ ] 仅本次有效，不更新
 
-2. [缺失知识] 发现 wiki 中缺少"项目交付周期"字段
-   示例值：标准项目 4-6 个月
-   → [ ] 新增至 wiki  [ ] 加入 schema-suggestions  [ ] 忽略
+2. [知识空白] wiki 中缺少"项目交付周期"字段
+   本次对话中的参考值：标准项目 4–6 个月
+   → [ ] 新增至对应 wiki 实体
+   → [ ] 加入 schema-suggestions.md（等待 Schema 级确认）
+   → [ ] 忽略
 
-3. [表达偏好] 对政府客户使用"数字政务"优于"智慧城市"
-   → [ ] 写入对应实体的 best-expression 字段  [ ] 忽略
+3. [表达偏好] 对政府客户的描述倾向
+   本次修正方向：使用"数字政务"优于"智慧城市"
+   → [ ] 写入对应实体的 best-expression 字段
+   → [ ] 忽略
 ```
 
-用户确认后，LLM 执行对应的 wiki 更新，并在 log.md 中记录（来源标注为 `FEEDBACK`）。
+用户确认后，LLM 执行对应的 wiki 更新，在 log.md 中记录（操作类型：`FEEDBACK`）。
 
 **交付物**
-- [ ] 更新 query.md，加入反馈捕获模块
-- [ ] 在 SCHEMA-CORE.md 中定义 best-expression 字段规范
-- [ ] 更新 log.md 格式，新增 `FEEDBACK` 操作类型
+- [ ] 新建 `prompts/ingest-experience.md`
+- [ ] 更新 `prompts/query.md`，加入路径 B 反馈捕获模块
+- [ ] 在 SCHEMA-CORE.md 中定义 `experience` 实体类型规范（§ 新增节）
+- [ ] 在 SCHEMA-CORE.md 中定义 `best-expression` 字段规范
+- [ ] 更新 log.md 格式，新增 `EXPERIENCE-INGEST` 和 `FEEDBACK` 操作类型
+- [ ] 在 domain-config.xlsx 中新增 Experience Types Sheet 和 Experience Section Types Sheet（含展厅行业示例）
+- [ ] 创建 `wiki/experiences/` 目录结构（含按 subtype 的子目录和 README.md）
 
 ---
 
-### v2.0 里程碑验收标准
+### 2.1.4 跨实体增益机制
 
-- [ ] Ingest 一份新方案后，能在 schema-suggestions.md 中看到至少 3 条有价值的自发现字段建议
-- [ ] 对同一实体的矛盾描述，pending-clarifications.md 能正确捕获并呈现
-- [ ] 完成一次完整 Query 并通过反馈捕获成功更新 wiki 中至少 1 个字段
+这是 v2.1 最核心的设计。**experience 实体不只是存档，它会主动反哺关联的 wiki 实体。**
+
+摄入一份事件报告后，触发以下增益逻辑：
+
+```
+跨实体增益流程（ingest-experience.md 步骤 4）：
+
+对每一个 subject 实体（如 modules/AI数字人讲解系统.md）：
+
+  增益 A：[qa] 分区追加
+    来源：报告中的 [qa-record] 分区
+    规则：仅追加真实发生的问答，不覆盖已有条目
+    标注：在每条 Q&A 后注明来源（exp entity_id + event_date）
+
+  增益 B：[narration] 分区追加
+    来源：报告中的 [narration-record] 分区
+    规则：追加讲解员的实际话术（非规划话术）
+    标注：注明来源 + 讲解员角色（不记名）
+
+  增益 C：scenarios 标签更新
+    来源：报告中的 [visitor-insights] 分区
+    规则：若发现该实体在新场景下产生显著反应，建议追加 scenarios 标签
+    方式：写入 schema-suggestions.md 等待人工确认，不自动修改
+
+  增益 D：client 实体偏好更新
+    来源：报告中的客户关注点、兴趣点数据
+    规则：在 clients/ 对应实体追加 preference_notes 段落（如已存在则追加，不覆盖）
+    标注：注明来源 event_date 和接待场次
+
+更新 experience 实体自身的 subject 字段，确认双向关联已建立。
+```
+
+> 这个机制使得同一个模块实体（如`modules/AI数字人讲解系统.md`）的 `[qa]` 和 `[narration]` 分区随着每次运营自动变得更丰富，无需人工干预。经过若干次接待后，该模块页面中沉淀的真实问答，质量将远超初始摄入时的"规划内容"。
 
 ---
 
-## v2.5 Graph Layer — 知识图谱关系层（Graphify 集成）
+### 2.1.5 experience 知识的生命周期
+
+experience 实体使用与其他实体相同的三态生命周期（active / outdated / archived），但触发条件不同：
+
+| 状态 | 触发条件 |
+|------|---------|
+| `active` | 默认状态，内容准确反映当时实际情况 |
+| `outdated` | Lint 检测到关联的核心 subject 实体已 archived，或 event_date 超过配置的时效阈值 |
+| `archived` | 系统或内容环境已发生重大变更，该历史记录失去参考价值 |
+
+experience 实体不强制归档，其历史价值高于时效性——旧的接待记录依然可以作为"历史样本"供图谱分析使用（v2.5 接入）。
+
+---
+
+### v2.1 里程碑验收标准
+
+- [ ] 完成一份事件报告的 ingest-experience 流程，`wiki/experiences/` 中出现新实体
+- [ ] 跨实体增益触发：对应 modules/ 实体的 `[qa]` 分区新增来自报告的真实问答
+- [ ] 对话式捕获触发：完成一次 query 并通过反馈捕获成功更新 wiki 中至少 1 个字段
+- [ ] 用不同行业的 domain-config（新增 Experience Types Sheet）完成一次 experience 摄入，验证普适性
+
+---
+
+## v2.5 Scale — 规模化支撑：媒体资产深化 + 图谱路由
 
 ### 目标
 
-在 v2.0 建立的知识实体基础上，引入 [Graphify](https://github.com/safishamsi/graphify) 作为 wiki 的**关系层**，解决三个核心问题：
-- wiki 实体之间的语义关联关系目前依赖人工或隐式理解，缺乏结构化表达
-- Query 随着 wiki 规模增长，token 消耗线性膨胀，需要图谱路由做前置过滤
-- AMBIGUOUS 关系的自动发现，与 v2.0 的冲突澄清机制打通
+当 wiki 规模从"个人/小团队使用"扩展到"客户侧多人运营"时，两类问题同时浮现：**媒体资产难以跨实体检索**、**全量扫描 token 线性膨胀**。v2.5 同时解决这两个规模化问题。
 
-> **Graphify 简介**：将代码、PDF、Markdown、图片等多模态文件转化为知识图谱（NetworkX），采用 Leiden 社区发现算法聚类（无需向量数据库），查询时 token 消耗最高可降低 71.5 倍。每条关系标注置信度：`EXTRACTED`（直接发现）/ `INFERRED`（推断）/ `AMBIGUOUS`（需人工复核）。
+> **为何合并到同一版本**：两个问题的触发条件高度重合（wiki 规模增大），且媒体资产索引本身就是图谱路由的重要节点类型——合并处理比分版本做更连贯。
+
+> **为何从 v3.0 提前到 v2.5**：原计划将媒体资产深化放在 v3.0，但对于媒体文件密集的客户场景（如展厅运营），资产索引是 Day-1 需求，不是"扩展功能"。v2.1 的 `exhibited_assets` 字段已预留接口，v2.5 将其正式建立成可查询的索引层。
+
+> **普适性说明**：媒体资产索引和图谱路由是与行业完全无关的基础设施。asset type 枚举（video / image / html / ppt / pdf / excel / link / diagram）可在 domain-config.xlsx 中扩展；图谱路由的节点和关系类型由 wiki 实际内容决定，不需要额外配置。
 
 ---
 
-### 2.5.1 在 wiki/ 上建立知识图谱
+### 2.5.1 媒体资产索引
 
-**操作**：将 Graphify 作为 skill 安装后，在 wiki/ 目录执行：
+> **基础层回顾**：v1.1 已在 SCHEMA-CORE.md 中定义了 `assets[]` frontmatter 字段（含 type / label / path / url / description），`sources/media/` 目录已建立。v2.1 新增了 `exhibited_assets` 字段记录事件中实际使用的资产。**v2.5 在此基础上建立跨实体的聚合索引层。**
+
+**问题**：随着资产数量增长（数十到数百个），"找所有 video 类型的资产"、"找哪个展项用了哪个视频"这类查询，逐页读 Frontmatter 效率极低。
+
+**方案**：建立全库资产聚合索引，由 Lint 自动维护：
+
+```
+wiki/assets/
+  index.md          # 全库资产聚合索引（Lint 自动生成和更新）
+  README.md         # 索引规范说明
+```
+
+`wiki/assets/index.md` 格式：
+
+```markdown
+# 资产索引
+
+> 由 Lint 自动生成，最后更新：YYYY-MM-DD
+> 来源：扫描所有 wiki 实体的 assets[] 和 exhibited_assets[] 字段
+
+## 按类型检索
+
+### video
+| 资产标签 | 所属实体 | 文件/URL | 描述 |
+|---------|---------|---------|------|
+| 5G融合展示视频 | modules/场景演示大师 | sources/media/5g-demo.mp4 | 3分钟，适合省级客户 |
+| ... | | | |
+
+### html
+| ... |
+
+## 按实体检索
+
+### modules/AI数字人讲解系统
+- [video] AI数字人演示 → sources/media/digital-human-demo.mp4
+- [ppt] 技术架构说明 → sources/media/dh-architecture.pptx
+
+## 跨事件资产使用记录（来自 experience 实体）
+
+| 资产标签 | 被引用次数 | 最近引用事件 |
+|---------|---------|------------|
+| 5G融合展示视频 | 7 | exp-2026-session-14 |
+```
+
+这个跨事件使用记录（来自 v2.1 的 `exhibited_assets`）本身就是高价值运营数据：高频使用的资产说明其内容强，低频说明可能需要更新或下线。
+
+**交付物**
+- [ ] 定义 `wiki/assets/index.md` 完整格式规范，写入 SCHEMA-CORE.md
+- [ ] 更新 `prompts/lint.md`，加入资产索引自动聚合步骤（扫描 `assets[]` 和 `exhibited_assets[]`）
+- [ ] 在 domain-config.xlsx Sheet2 中完善 `assets.type` 枚举值
+- [ ] 更新 `prompts/query.md`，支持按资产类型跨实体检索（如"找所有包含 video 资产的模块"）
+
+---
+
+### 2.5.2 知识图谱路由（Graphify 集成）
+
+**问题**：随着 wiki 实体增长（客户场景预期 150–300 页），Query 时全量扫描 wiki 的 token 消耗线性膨胀，超出实用阈值。
+
+**触发阈值（调整后）**：
+
+原 ROADMAP 设定的触发条件为"clients/ 超过 400K"，适用于内部场景。**客户侧运营规模更大，提前触发条件为以下任一：**
+- `wiki/` 实体总数超过 **150 页**（含 experience 实体）
+- 单次 Query 响应频繁出现 `[内容已截断]` 提示
+- `wiki/experiences/` 中积累超过 **30 个** session 事件（图谱关联关系密度开始有意义）
+
+**工具**：[Graphify](https://github.com/safishamsi/graphify)——将 Markdown 文件转化为知识图谱（NetworkX），Leiden 社区发现算法聚类，无需向量数据库，查询时 token 消耗最高可降低 71.5 倍。
+
+**初始建图**：
 
 ```bash
 /graphify ./wiki --mode deep
 ```
 
-Graphify 将扫描所有 wiki Markdown 页面，提取知识实体节点和它们之间的语义关系，生成：
-
+输出：
 ```
 wiki/graph/
-├── graph.json       # 持久化图谱数据（进 git，团队共享）
-├── graph.html       # 可交互可视化（进 git）
-└── GRAPH_REPORT.md  # 一页式关系摘要（进 git）
+  graph.json        # 持久化图谱数据（进 git）
+  graph.html        # 可交互可视化（进 git）
+  GRAPH_REPORT.md   # 一页式关系摘要（进 git）
 ```
 
-生成的关系示例：
+生成的关系示例（展厅行业）：
 ```
-[运营商行业] --常用方案类型--> [5G智慧展厅系统方案]   EXTRACTED 1.0
-[5G智慧展厅] --竞品对标-->     [华为智能展厅]          INFERRED  0.82
-[华为智能展厅] --信息来源-->   [competitors/huawei]    EXTRACTED 1.0
-[投标方案模板] --适用行业-->   [运营商行业]            INFERRED  0.75
-```
-
-**与 Obsidian 的协作关系**：
-
-| | Obsidian 图谱 | Graphify 图谱 |
-|---|---|---|
-| 关系来源 | 显式 `[[链接]]` | 语义提取 + 推断 |
-| 置信度标注 | 无 | EXTRACTED / INFERRED / AMBIGUOUS |
-| 社区聚类 | 无 | Leiden 算法自动分组 |
-| 交互查询 | 基础浏览 | `/graphify query "问题"` |
-| 路径追踪 | 无 | `/graphify path "实体A" "实体B"` |
-
-Obsidian 负责日常内容浏览和编辑，Graphify 负责关系发现、聚类分析和查询优化，两者互补不冲突。
-
-**交付物**
-- [ ] 安装 Graphify skill（`graphify claude install`）
-- [ ] 首次在 wiki/ 上运行 `/graphify . --mode deep`，生成初始图谱
-- [ ] 创建 wiki/graph/ 目录，确认三个输出文件正常生成
-- [ ] 将 wiki/graph/ 加入 git 跟踪（graph.json 和 graph.html 进 git）
-
----
-
-### 2.5.2 AMBIGUOUS 关系 → 打通冲突澄清机制
-
-**方案**：Graphify 标记为 `AMBIGUOUS` 的关系，自动追加写入 `wiki/pending-clarifications.md`（v2.0 已建立），格式统一：
-
-```markdown
-### [CONFLICT-G001] 关系待澄清（来自 Graphify）
-- 实体A：modules/content-system.md
-- 实体B：modules/operation-system.md
-- 疑似关系："内容系统包含运营系统" vs "两者并列"
-- 置信度：0.41（AMBIGUOUS）
-- 建议裁决：[ ] A包含B  [ ] 并列关系  [ ] 无直接关系
+[通信运营商行业]  --常用展厅类型-->  [数智体验中心]         EXTRACTED 1.0
+[数智体验中心]   --核心模块-->       [AI数字人讲解系统]     INFERRED  0.87
+[AI数字人讲解系统] --在接待中使用-->  [exp-2026-session-12]  EXTRACTED 1.0  ← v2.1 新增节点
+[广州电信展示中心] --偏好主题-->      [AI体验主题包]         INFERRED  0.73
 ```
 
-用户在 Lint 周期中统一处理，裁决结果写回 wiki 并触发 `/graphify --update` 刷新图谱中该关系的置信度。
+注意：v2.1 新增的 `experience` 实体会成为图谱中的事件节点，连接 client 实体、module 实体和 asset 实体，形成"运营历史图谱"。
 
-**交付物**
-- [ ] 更新 lint.md prompt，加入读取 graph.json 中 AMBIGUOUS 关系并写入 pending-clarifications.md 的步骤
-- [ ] 在 SCHEMA-CORE.md 中定义 Graphify 关系标注与 wiki 冲突机制的对应规则
-
----
-
-### 2.5.3 Query 改为图谱路由模式
-
-**问题**：随着 wiki 实体增长（预计 100+ 页），Query 时全量扫描 wiki 内容的 token 消耗会持续膨胀。
-
-**方案**：Query 新增图谱路由前置步骤：
+**图谱路由 Query 流程**：
 
 ```
-原 Query 流程：
-  接收查询参数 → 扫描全部 wiki 页面 → LLM 合成输出
+原 Query 流程：接收参数 → 全量扫描 wiki → LLM 合成输出
 
 新 Query 流程（图谱路由）：
   接收查询参数
-    → /graphify query "参数关键词"   ← 图谱层快速定位相关节点
-    → 取出相关节点对应的 wiki 页面列表（精准子集）
-    → 仅将该子集内容喂给 LLM 合成输出
+    ↓
+  /graphify query "{关键词}"   ← 图谱层快速定位相关节点（ms级）
+    ↓
+  取出相关节点对应的 wiki 页面列表（精准子集，通常 10–30 页）
+    ↓
+  仅将该子集内容喂给 LLM 合成输出（token 消耗大幅下降）
 ```
 
-实测 token 消耗可降低数十倍（Graphify 官方数据：混合语料场景降低 71.5 倍）。
+**AMBIGUOUS 关系 → 打通冲突澄清机制**：
 
-**交付物**
-- [ ] 更新 query.md prompt，加入图谱路由前置步骤
-- [ ] 在 SCHEMA-CORE.md 中记录 Query 两阶段流程规范
+Graphify 标记为 `AMBIGUOUS` 的关系自动追加写入 `wiki/pending-clarifications.md`（v2.0 已建立）：
 
----
+```markdown
+### [CONFLICT-G001] 图谱关系待澄清（来自 Graphify）
+- 实体A：modules/场景演示大师.md
+- 实体B：modules/AI内容生产工具-场景演示大师.md
+- 疑似关系：重复实体 vs 包含关系（两者是同一事物吗？）
+- 置信度：0.38（AMBIGUOUS）
+- 建议裁决：[ ] 合并为同一实体  [ ] 保留，明确区分  [ ] 无关联
+```
 
-### 2.5.4 Ingest 后自动刷新图谱
+**Ingest 后自动刷新图谱**：
 
-**方案**：每次 Ingest 完成、wiki 页面有更新后，追加执行图谱增量更新：
+每次 Ingest（包括 ingest-experience.md）完成后追加执行：
 
 ```bash
-/graphify ./wiki --update    # 仅处理变更文件（SHA256 缓存机制）
+/graphify ./wiki --update    # 仅处理变更文件（SHA256 缓存，成本极低）
 ```
 
-此操作成本极低，不影响 Ingest 整体速度。后续接入 v3.0 自动触发机制后，可与 Ingest 形成联动。
-
 **交付物**
-- [ ] 更新 ingest.md prompt，末尾加入"执行 `/graphify ./wiki --update` 刷新图谱"步骤
-- [ ] 在 wiki/config.yml（v3.0 引入）中预留 `graph.auto_update` 配置项
-
----
-
-### 2.5.5 外脑图谱（为 v3.0 预埋）
-
-v3.0 引入 world-sources/ 外部知识后，可对 `wiki/external/` 单独运行 Graphify，生成外部知识图谱，并与内部图谱建立跨域连接边（权重低于内部关系，反映来源可信度差异）。
-
-此部分在 v2.5 仅做**接口预留**，不实现：在 graph.json 的 schema 中预留 `source_type: internal/external` 字段，便于 v3.0 合并双图谱时直接使用。
-
-**交付物**
-- [ ] 在 SCHEMA-CORE.md 中注明 graph.json 的 `source_type` 字段预留说明
+- [ ] 安装 Graphify skill（`graphify claude install`）
+- [ ] 首次在 `wiki/` 上运行 `/graphify . --mode deep`，生成初始图谱三文件
+- [ ] 更新 `prompts/query.md`，加入图谱路由前置步骤
+- [ ] 更新 `prompts/lint.md`，加入读取 `AMBIGUOUS` 关系并写入 `pending-clarifications.md` 的步骤
+- [ ] 更新 `prompts/ingest.md` 和 `prompts/ingest-experience.md`，末尾加入 `/graphify --update` 步骤
+- [ ] 在 SCHEMA-CORE.md 中记录图谱路由的 Query 两阶段流程规范
+- [ ] 在 `graph.json` schema 中预留 `source_type: internal/external` 字段（为 v3.0 外脑机制预埋）
 
 ---
 
 ### v2.5 里程碑验收标准
 
-- [ ] `/graphify . --mode deep` 在 wiki/ 上成功运行，生成 graph.json / graph.html / GRAPH_REPORT.md
-- [ ] graph.html 可在浏览器中交互浏览，节点点击能看到对应 wiki 实体内容
-- [ ] AMBIGUOUS 关系自动出现在 pending-clarifications.md 中
-- [ ] Query 通过图谱路由，相比全量扫描 token 消耗明显下降
-- [ ] Ingest 新文件后执行 `--update`，图谱中出现新节点和关系
+- [ ] `/graphify . --mode deep` 在 `wiki/` 上成功运行，`graph.html` 可在浏览器中交互浏览
+- [ ] `experience` 实体作为事件节点出现在图谱中，与 client/module/asset 节点正确关联
+- [ ] `AMBIGUOUS` 关系自动出现在 `pending-clarifications.md` 中
+- [ ] Query 通过图谱路由，实际喂入 LLM 的 wiki 内容子集明显小于全量
+- [ ] `wiki/assets/index.md` 由 Lint 自动生成并反映全库媒体资产状态
+- [ ] Ingest 新文件后 `--update`，图谱中出现对应新节点和关系
 
 ### v2.5 提前触发条件
 
-v2.5 无需等待 v2.0 全部完成，当以下任一条件满足时应优先启动：
-
-- `wiki/clients/` 目录体积超过 **400K**（当前 212K，约 100 份方案时触发）
-- 单次 `/api/query` 响应中频繁出现 `[内容已截断]` 提示
-- `MAX_WIKI_CHARS` 被迫调高至 120K 以上仍不够用
-
-> **背景**：`clients/` 是增长最快的目录，随方案持续入库将线性膨胀。图谱路由是解决上下文膨胀的根本方案，不应因等待其他版本而延误。
+无需等待 v2.0 / v2.1 全部完成，以下任一条件满足时应优先启动：
+- `wiki/` 实体总数超过 150 页
+- 单次 Query 频繁出现 `[内容已截断]`
+- `wiki/experiences/` 积累超过 30 个 session 事件
 
 ---
 
-## v3.0 Expansion — 多媒体资产 + 外脑机制 + 自动触发
+## v3.0 Expansion — 外脑机制 + 自动触发 + 服务端流水线
 
 ### 目标
 
-大幅扩展知识库的"感知范围"：向内打通多媒体资产索引，向外接入互联网知识补充，向下实现变更自动触发。
+扩展知识库的"感知边界"和"运行自主性"：向外接入互联网知识补充（外脑），向下实现变更自动触发，向运维侧提供服务端 Ingest 流水线。
 
-### 3.1 多媒体资产深化
+> **与 v2.0–v2.5 的分工**：v2.x 系列是知识库的"智能化"——知识结构自进化、经验自积累、规模自适应。v3.0 是知识库的"自动化"——减少人工触发、接入外部世界、降低运维成本。
 
-> **v1.1 已完成基础层**：`assets[]` 字段已写入 SCHEMA-CORE.md Frontmatter 标准，每个实体可直接携带资产引用（type/label/path/url/description）。`sources/media/` 目录已建立。
-
-**v3.0 补充的深化工作**：基础引用已有，v3.0 解决大规模资产管理中出现的新问题。
-
-**问题（v3.0 视角）**：随着资产数量增长（数十到数百个），需要跨实体的资产检索能力——"找所有 architecture-diagram 类型的资产"这类查询，仅靠逐页读取 Frontmatter 效率低。
-
-**方案**：建立独立的资产索引文件（作为 Frontmatter assets 字段的聚合视图）：
-
-```
-wiki/assets/index.md    # 全库资产聚合索引，由 Lint 自动维护
-```
-
-索引格式：
-```markdown
-| 资产ID | 实体 | 类型 | 描述 | 路径/URL |
-|--------|------|------|------|---------|
-| exhibit-2024-...-01#video-01 | 5G工厂展项 | video | 3分钟介绍视频 | cdn.../5g.mp4 |
-```
-
-此索引不替代 Frontmatter 中的 `assets` 字段，而是它的聚合查询视图，由 Lint 扫描全库自动生成和更新。
-
-**交付物**
-- [ ] 定义 wiki/assets/index.md 格式规范
-- [ ] 更新 lint.md，加入资产索引自动聚合步骤
-- [ ] 在 domain-config.xlsx Sheet2 中完善 assets.type 枚举值（video / image / html / ppt / pdf / excel / link / diagram / photo 等）
-- [ ] 更新 query.md，支持按资产类型跨实体检索
+> **普适性说明**：外脑机制（world-sources）和自动触发（config.yml）是通用基础设施。外部知识的来源类型（行业报告、竞品官网、政策文件等）可在 domain-config.xlsx 中扩展，不硬编码。
 
 ---
 
-### 3.2 外脑机制（World Sources）
+### 3.1 外脑机制（World Sources）
 
-**问题**：企业内部方案只反映自身经验，缺乏行业趋势、竞品动态、政策解读等外部视角，限制了知识库对商业策略和解决方案生产的支撑能力。
+**问题**：内部知识库只反映企业自身经验，缺乏行业趋势、竞品动态、政策解读等外部视角。
 
 **方案**：构建与内部 wiki 并行的外部知识空间：
 
-**目录结构**：
 ```
-world-sources/           # 原始外部材料（不进 git，同 sources/）
-  ├── industry-reports/  # 行业研究报告
-  ├── competitor-web/    # 竞品官网/公开材料
-  ├── policy-official/   # 政府政策原文
-  └── news-articles/     # 行业新闻
+world-sources/             # 外部原始材料（不进 git，同 sources/）
+  industry-reports/        # 行业研究报告
+  competitor-web/          # 竞品官网/公开材料
+  policy-official/         # 政府政策原文
+  news-articles/           # 行业新闻
 
-wiki/external/           # 外部知识提炼（进 git，有明确标注）
-  ├── index.md
-  ├── industry-trends/
-  ├── competitors/       # 与 wiki/competitors/ 互补
-  └── policies/          # 与 wiki/policies/ 互补
+wiki/external/             # 外部知识提炼（进 git，有明确标注）
+  index.md
+  industry-trends/
+  competitors/             # 与 wiki/competitors/ 互补
+  policies/                # 与 wiki/policies/ 互补
 ```
 
 **核心设计原则**：
 - 每个外部 wiki 页面顶部必须有 `[EXTERNAL]` 醒目标注
-- 每条知识点必须标注 `source_url` + `crawled_at` 时间戳
-- 外部知识**按实体绑定生长**：Ingest 内部方案提取出"华为展厅"实体时，触发外部搜索补充华为展厅的公开信息，挂在同一实体下的 `external:` 分区块
+- 每条知识点标注 `source_url` + `crawled_at` 时间戳
+- 外部知识按实体绑定：Ingest 内部方案提取出某竞品实体后，可触发外部搜索补充公开信息
+- Lint 检查时，`crawled_at` 超过 180 天的外部条目标记"建议刷新"
 
-**外部知识的 Ingest 触发逻辑**：
-```
-1. 完成内部 Ingest，提取出新实体列表
-2. 对每个新实体，执行外部搜索（通过 web-search 工具或 agent-reach skill）
-3. 提炼外部搜索结果 → 写入 wiki/external/
-4. 在对应内部 wiki 页面增加 external_refs: 指针
-```
-
-**Query 时的筛选控制**：
-```
-默认：仅内部 wiki 参与检索
---include-external：内部 + 外部 wiki 均参与，外部结果标注来源
---external-only：仅用于了解外部视角（竞品研究、行业对标等）
-```
-
-**外部知识的维护**：
-- Lint 检查时，对 `crawled_at` 超过 180 天的外部条目标记为"建议刷新"
-- 政策类外部知识比照内部政策的生命周期管理
+**Query 筛选控制**：默认仅内部 wiki 参与检索；`--include-external` 同时召回，结果标注来源。
 
 **交付物**
-- [ ] 在 SCHEMA-CORE.md 中写入外部知识规范（标注要求、溯源规则）
-- [ ] 创建 world-sources/ 和 wiki/external/ 目录结构
-- [ ] 新增 prompts/ingest-external.md（外部知识专用 Ingest prompt）
-- [ ] 更新 query.md，加入 internal/external 筛选控制
-- [ ] 更新 lint.md，加入外部知识时效检测
+- [ ] 在 SCHEMA-CORE.md 中写入外部知识规范（标注要求、溯源规则、生命周期）
+- [ ] 创建 `world-sources/` 和 `wiki/external/` 目录结构
+- [ ] 新增 `prompts/ingest-external.md`（外部知识专用 Ingest prompt）
+- [ ] 更新 `prompts/query.md`，加入 internal/external 筛选控制
+- [ ] 更新 `prompts/lint.md`，加入外部知识时效检测
 
 ---
 
-### 3.3 自动触发机制
+### 3.2 自动触发机制
 
-**问题**：当 sources/ 更新频繁时，手动触发 Ingest 效率低，容易遗漏。
+**问题**：sources/ 更新频繁时，手动触发 Ingest 效率低，容易遗漏。
 
-**方案**：两种触发模式，通过配置文件切换：
+**方案**：通过 `wiki/config.yml` 配置触发模式：
 
 ```yaml
-# wiki/config.yml（新增配置文件）
+# wiki/config.yml
 
 ingest:
   trigger_mode: manual          # manual / auto-confirm / auto-silent
   watch_paths:
     - sources/proposals/
     - sources/competitors/
+    - sources/reports/          # v2.1 新增：事件报告目录
   exclude_patterns:
     - "*.tmp"
-    - "~$*"                     # Office 临时文件
+    - "~$*"
+
+experience:
+  auto_enrich: true             # Ingest experience 后是否自动触发跨实体增益
+  enrichment_confirm: true      # true = 每次增益前等待人工确认，false = 静默执行
 
 lint:
-  schedule: monthly             # monthly / weekly / manual
-  auto_archive: false           # 是否自动执行归档（false=仅建议，需用户确认）
+  schedule: monthly
+  auto_archive: false
+
+graph:
+  auto_update: true             # v2.5 预留：Ingest 后是否自动执行 /graphify --update
 ```
 
-触发模式说明：
+触发模式：
 - `manual`：完全手动（默认，适合初期）
-- `auto-confirm`：检测到新文件时提示用户确认再执行（推荐日常使用）
-- `auto-silent`：静默自动 Ingest，完成后通知（适合批量场景，需谨慎）
+- `auto-confirm`：检测到新文件时提示用户确认再执行（推荐日常）
+- `auto-silent`：静默自动执行，完成后通知（适合批量场景，谨慎使用）
 
 **交付物**
-- [ ] 创建 wiki/config.yml 及其说明文档
+- [ ] 创建 `wiki/config.yml` 及说明文档
 - [ ] 更新 SCHEMA-CORE.md，说明 config.yml 的作用和触发逻辑
-- [ ] 更新 README.md，加入触发模式配置说明
+
+---
+
+### 3.3 服务端 Ingest 流水线
+
+**背景**：当前所有 Ingest 均为本地操作（在 Claude Code / Cursor 中手动执行 prompt）。随着客户侧运营规模扩大，需要支持服务端批量处理。
+
+**方案**：
+
+```
+服务端 Ingest Pipeline（阶段性方案）：
+
+阶段一（v3.0 实现）：
+  - 提供 CLI 脚本 tools/ingest_batch.py
+  - 扫描 sources/ 中的新文件（与 wiki/log.md 比对，找出未 Ingest 的文件）
+  - 批量调用 LLM API（Claude API）执行 Ingest，写入 wiki/
+  - 结果输出 ingest-report.md，供人工审核后合入 git
+
+阶段二（v3.0+ 延伸）：
+  - 与 wiki-app 集成，提供 /api/ingest 端点
+  - 支持上传文件 → 触发 Ingest → 结果写入 wiki 的完整 web 流程
+  - 需要 Claude API 密钥，不依赖 Claude Code / Cursor 本地工具
+```
+
+**交付物**
+- [ ] 创建 `tools/ingest_batch.py`（CLI 批处理脚本）
+- [ ] 在 SCHEMA-CORE.md 中补充服务端 Ingest 与本地 Ingest 的一致性约束
+- [ ] 更新 README.md，说明两种 Ingest 模式的适用场景
 
 ---
 
 ### v3.0 里程碑验收标准
 
-- [ ] Ingest 一份含图表的方案，wiki/assets/ 中出现对应资产清单
-- [ ] 手动触发一次外部补充，wiki/external/ 中出现有溯源标注的外部知识页面
-- [ ] Query 时通过 `--include-external` 能同时召回内外部知识且来源标注清晰
+- [ ] 触发一次外部补充，`wiki/external/` 中出现有溯源标注的外部知识页面
+- [ ] Query 时 `--include-external` 能同时召回内外部知识且来源清晰区分
+- [ ] `wiki/config.yml` 的 `auto-confirm` 模式在检测到新文件时正确提示
+- [ ] `tools/ingest_batch.py` 能扫描出未 Ingest 文件并批量处理，输出审核报告
 
 ---
 
-## v4.0 Production — 方案生产闭环
+## v4.0 Production — 方案生产闭环（暂缓）
 
-### 目标
+### 定位说明
 
-将 wiki 知识库从"信息检索工具"升级为"方案生产基础设施"，实现从知识查询到生产级输出物的完整链路。
+v4.0 是**应用层能力**，不是知识基础设施层。wiki 系统在 v1.1 完成解耦后，方案生产应用可以独立开发，不需要等待 wiki 层达到 v4.0。
 
-### 4.1 结构化方案草稿输出
+**暂缓原因**：
 
-**方案**：在 query.md 中新增"方案草稿生成"模式，Query 的输出不只是素材包，而是一份结构完整的方案草稿：
+1. wiki 的核心价值是知识积累和检索，方案生产的最终形态（HTML/PPT 格式和品牌规范）是下游应用决策，不应由 wiki 层硬编码
+2. md→HTML→PPT 工具链的选型（Marp / python-pptx / Remotion 等）需要在实际方案生产需求明确后再评估
+3. wiki 知识库在 v2.x 达到足够的内容质量和结构化程度后，方案生产应用接入的价值才能充分体现
 
-```markdown
-## 方案草稿生成请求格式
+**预期时机**：在 v2.1 经验知识体系建立、wiki 内容经过若干轮运营积累后，方案生产的 wiki 素材质量才足以支撑高质量输出。届时评估 v4.0 启动。
 
-行业: 运营商
-客户层级: 省级
-项目类型: 新建
-方案阶段: 投标方案
-输出格式: 草稿  ← 新增参数
-```
-
-输出的草稿遵循统一的章节结构（在 domain-config.xlsx 的 Sheet4 中定义），每个章节注明：
-- 使用的 wiki 知识来源
-- 建议引用的资产（图表/案例图）
-- [需补充] 标注（wiki 中暂无对应知识的空位）
-
-草稿以 Markdown 文件保存至 `outputs/drafts/` 目录（不进 git）。
-
-**交付物**
-- [ ] 在 domain-config.xlsx 增加 Sheet4：方案章节结构模板
-- [ ] 更新 query.md，加入草稿生成模式
-- [ ] 创建 outputs/drafts/ 目录（加入 .gitignore）
-
----
-
-### 4.2 md → HTML 转换
-
-**方案**：为草稿 Markdown 提供 HTML 转换支持，输出带企业品牌样式的 HTML 方案文档：
-
-- 提供 CSS 模板（`assets/templates/proposal.css`），支持企业 Logo、色系配置
-- 通过 Pandoc 执行转换（在 SCHEMA-CORE.md 中写入转换命令）
-- HTML 输出至 `outputs/html/`
-
-**交付物**
-- [ ] 创建 assets/templates/ 目录，提供基础 proposal.css 模板
-- [ ] 在 SCHEMA-CORE.md 中写入 md→HTML 转换命令和样式配置说明
-- [ ] 创建 outputs/html/（加入 .gitignore）
-
----
-
-### 4.3 HTML → PPT 转换
-
-**方案**：这是链路中技术复杂度最高的一步，建议通过独立 agent/skill 实现，与 wiki 核心系统解耦：
-
-- **方式A（推荐，低依赖）**：使用 Marp 将结构化 Markdown 直接转换为 PPT，在 domain-config.xlsx 中定义 Marp 主题配置
-- **方式B（高质量，有依赖）**：通过 python-pptx 脚本，将 HTML 转换为格式精确的 PPTX 文件
-- **方式C（工具集成）**：接入专门的 md→PPT skill（如 remotion-video 或类似工具）
-
-最终选型在 v3.0 完成后根据工具链实际情况确定。
-
-**交付物**
-- [ ] 评估 Marp / python-pptx / 外部工具的适用性，确定选型
-- [ ] 实现选定方案，输出至 `outputs/pptx/`
-- [ ] 在 README.md 中记录完整的生产链路操作步骤
-
----
-
-### v4.0 里程碑验收标准
-
-- [ ] 输入行业+层级+阶段参数，能输出一份结构完整（含章节、来源标注、[需补充]标记）的 Markdown 草稿
-- [ ] 草稿成功转换为带样式的 HTML 文件
-- [ ] HTML 文件成功转换为可直接演示的 PPT 文件
+**主要工作预览**（不做详细规划，待启动时完善）：
+- 结构化方案草稿输出（query.md 新增草稿生成模式）
+- md → 带品牌样式的 HTML
+- HTML → PPTX（工具链待定）
+- `outputs/` 目录（不进 git）
 
 ---
 
@@ -727,68 +897,79 @@ lint:
 | 操作类型 | 含义 | 引入版本 |
 |---------|------|---------|
 | INIT | 系统初始化 | v0.1 |
-| INGEST | 摄入新材料 | v0.1 |
+| INGEST | 摄入新材料（方案/文档类） | v0.1 |
 | QUERY | 执行查询 | v0.1 |
 | LINT | 健康检查 | v0.1 |
 | VERSION-UPDATE | 版本覆盖更新 | v1.0 |
 | ARCHIVE | 知识归档 | v1.0 |
 | SCHEMA-UPDATE | Schema 或规则变更通知 | v1.1 |
-| FEEDBACK | 交互反馈反哺 | v2.0 |
+| EXPERIENCE-INGEST | 摄入经验事件报告 | v2.1 |
+| EXPERIENCE-ENRICH | 跨实体增益执行记录 | v2.1 |
+| FEEDBACK | 对话式反馈反哺 | v2.1 |
 | GRAPH-UPDATE | 图谱增量刷新 | v2.5 |
 | EXTERNAL-INGEST | 外部知识摄入 | v3.0 |
 | DRAFT-GENERATED | 方案草稿生成 | v4.0 |
 
-### 目录结构全景（v4.0 完成后）
+---
+
+### 目录结构全景（v3.0 完成后）
 
 ```
-company-wiki/
-├── SCHEMA-CORE.md          # 通用核心规则
+llm-wiki-kit/                   # 项目根目录
+├── SCHEMA-CORE.md
 ├── CLAUDE.md / AGENTS.md / .cursorrules
 ├── README.md
-├── ROADMAP.md              # 本文件
+├── ROADMAP.md
 │
 ├── schema/
-│   └── domain-config.xlsx  # 领域配置（企业自定义）
+│   └── domain-config.xlsx      # 领域配置（企业替换此文件适配行业）
 │
 ├── prompts/
-│   ├── ingest.md
-│   ├── ingest-external.md  # v3.0 新增
+│   ├── ingest.md               # 方案/文档类摄入
+│   ├── ingest-experience.md    # v2.1 新增：经验事件报告摄入
+│   ├── ingest-external.md      # v3.0 新增：外部知识摄入
 │   ├── query.md
 │   └── lint.md
 │
-├── sources/                # 内部原始材料（不进 git）
+├── tools/
+│   ├── migrate_v1_1.py         # entity_id 批量补填（已完成）
+│   └── ingest_batch.py         # v3.0 新增：服务端批量 Ingest
+│
+├── sources/                    # 内部原始材料（不进 git）
 │   ├── proposals/
 │   ├── competitors/
 │   ├── patents/
 │   ├── certificates/
 │   ├── policies/
-│   ├── media/              # 多媒体资产原件  v1.1 新增
-│   └── annotations/        # 人工补充材料（可选）  v1.1 新增
-├── world-sources/          # 外部原始材料（不进 git）
-├── outputs/                # 生成物（不进 git）
-│   ├── drafts/
-│   ├── html/
-│   └── pptx/
+│   ├── reports/                # v2.1 新增：事件报告（机器生成）
+│   ├── media/                  # v1.1 新增：多媒体资产原件
+│   └── annotations/            # v1.1 新增：人工补充材料（可选）
 │
-├── assets/
-│   └── templates/          # HTML/PPT 样式模板
+├── world-sources/              # 外部原始材料（不进 git，v3.0 新增）
 │
-└── wiki/                   # 知识库主体（进 git）
+├── wiki-app/                   # web 查询应用（独立演进，下游应用）
+│
+└── wiki/                       # 知识库主体（进 git）
     ├── index.md
     ├── log.md
-    ├── config.yml          # v3.0 新增
-    ├── schema-suggestions.md   # v2.0 新增
-    ├── pending-clarifications.md  # v2.0 新增
-    ├── graph/              # Graphify 知识图谱  v2.5 新增
+    ├── config.yml              # v3.0 新增：触发配置
+    ├── schema-suggestions.md   # v2.0 新增：自发现字段建议池
+    ├── pending-clarifications.md  # v2.0 新增：冲突待裁决池
+    ├── graph/                  # v2.5 新增：Graphify 知识图谱
     │   ├── graph.json
     │   ├── graph.html
     │   └── GRAPH_REPORT.md
-    ├── assets/             # 多媒体资产清单  v3.0 新增
-    ├── external/           # 外部知识  v3.0 新增
-    ├── archive/            # 归档知识  v1.0 新增
+    ├── assets/                 # v2.5 新增：媒体资产聚合索引
+    │   └── index.md
+    ├── experiences/            # v2.1 新增：经验知识
+    │   ├── sessions/           # 事件型（接待/活动/案例）
+    │   ├── monthly/            # 周期型（月报/季报）
+    │   ├── lessons/            # 沉淀型（经验总结）
+    │   └── README.md
+    ├── external/               # v3.0 新增：外部知识
+    ├── archive/                # v1.0 新增：归档知识
     ├── industries/
-    ├── solution-types/
-    ├── hall-types/
+    ├── hall-types/             # 展厅行业示例，其他行业替换
     ├── proposal-stages/
     ├── modules/
     ├── competitors/
@@ -801,9 +982,14 @@ company-wiki/
 
 ## 下一步行动
 
-**当前状态（2026-04-17）**：v0.1 ~ v1.1 均已完成。知识核心层架构稳定，wiki-app 生产运行正常。
+**当前状态（2026-04-20）**：v0.1 ~ v1.1 均已完成。
 
-**验收优先（v1.0/v1.1 遗留）**：
+- 知识核心层架构稳定，wiki-app 生产运行正常
+- 今日完成：entity_id 批量补填（82 个文件，`tools/migrate_v1_1.py` 脚本处理）
+- 版本路线图经评估调整：新增 v2.1 Experience，v2.5 合并媒体深化+图谱路由，普适性原则显式化
+
+**当前版本遗留验收（v1.0/v1.1）**：
+
 ```
 1. 用非展厅行业的 domain-config.xlsx 完成一次 Ingest，验证通用化效果
 2. 对同一项目执行两次 Ingest（不同版本），验证版本管控和 history 块
@@ -812,8 +998,20 @@ company-wiki/
 ```
 
 **下一版本启动条件**：
+
 ```
-v2.0 启动：wiki 内容积累到可验证"自发现字段"价值时（建议 100+ 页）
-v2.5 提前触发：clients/ 体积超过 400K，或频繁出现 [内容已截断] 提示
-v3.0 启动：有明确的多媒体资产批量接入需求（展厅策展等应用上线前置）
+v2.0 启动：wiki 内容可验证"自发现字段"价值（建议 100+ 页）
+
+v2.1 启动：有第一批事件报告（接待报告/运营报告）待摄入
+  - 可与 v2.0 并行推进，两者无强依赖
+  - domain-config.xlsx 需先扩展 Experience Types Sheet
+
+v2.5 启动（提前触发，满足任一）：
+  - wiki 实体总数超过 150 页
+  - 单次 Query 频繁出现 [内容已截断]
+  - wiki/experiences/ 积累超过 30 个 session 事件
+
+v3.0 启动：有明确的外部知识接入需求，或服务端批处理需求上线
+
+v4.0 启动：wiki 内容经若干轮运营积累，方案生产的知识基础成熟后评估
 ```
