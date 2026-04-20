@@ -62,7 +62,57 @@
 [YYYY-MM-DD HH:MM] INGEST | sources/proposals/xxx.pdf | 新建/更新页面: [列表]
 （若执行了版本更新，操作类型改为 VERSION-UPDATE）
 
-请先输出步骤 0-2 的分析确认（领域配置加载情况 + 实体匹配结果）后，再执行步骤 3-5。
+---
+
+【阶段二：自由发现扫描（v2.0）】
+
+完成步骤 0–5 后，重新扫描原文件，寻找 domain-config.xlsx 未覆盖但具有反复出现或高业务价值的内容：
+
+判断标准（满足任一即记录）：
+- 在本文件中出现 2 次以上的结构化信息（数值、类型、名称等）
+- 属于商业决策维度（预算区间、决策周期、采购触发事件等）
+- 属于竞争情报维度（与友商差异、客户转换原因等）
+- 属于执行经验维度（项目风险、交付难点、验收争议等）
+
+发现后执行两步写入：
+
+写入 1：在当前 wiki 页面 frontmatter 中追加 auto_discovered 块（不影响 schema 驱动字段）
+```yaml
+auto_discovered:
+  - field: 建议字段名
+    value: 发现的值
+    context: 原文出处（一句话）
+    confidence: high / medium
+```
+
+写入 2：在 wiki/schema-suggestions.md 中追加建议条目（若文件不存在则新建）
+格式见 wiki/schema-suggestions.md 规范。
+
+若本次未发现任何高价值字段，在日志中追加一行：
+[YYYY-MM-DD HH:MM] INGEST | 自发现扫描：无新发现
+
+---
+
+【步骤 3b 补充：冲突检测（v2.0，仅版本更新时执行）】
+
+在逐字段比对时，识别以下三类冲突：
+
+Type A — 数值冲突（同字段，不同来源，值不同）
+  → 新旧值并存，加 [CONFLICT] 标记，写入 pending-clarifications.md
+  → 不阻断写入，继续更新其他字段
+
+Type B — 定性矛盾（描述方向相反，如"系统稳定"vs"系统故障频发"）
+  → 暂停写入该字段，将两种描述写入 pending-clarifications.md
+  → 在 wiki 页面对应字段加 [PENDING] 标记，等待裁决
+
+Type C — 逻辑矛盾（观点差异，如"该功能是优势"vs"该功能是短板"）
+  → 两者均写入，各加 [PERSPECTIVE: 来源文件名] 标注
+  → 在 pending-clarifications.md 备案（无需裁决，属观点差异）
+
+写入 wiki/pending-clarifications.md 后，在日志追加：
+[YYYY-MM-DD HH:MM] INGEST | 冲突检测：发现 N 条冲突 → pending-clarifications.md
+
+请先输出步骤 0-2 的分析确认（领域配置加载情况 + 实体匹配结果）后，再执行步骤 3-5 及阶段二。
 完成后提示执行 Validate（见 prompts/validate.md）进行可视化验证。
 ```
 
@@ -87,7 +137,9 @@
 - 新建 wiki 页面列表
 - 版本更新页面列表（含新旧 version 号）
 - 归入 history 块的字段变更统计
-- 发现的潜在问题（政策过期、内容矛盾、枚举值不在 domain-config 中等）
+- 自发现字段建议数（已写入 schema-suggestions.md）
+- 冲突检测结果（A/B/C 各类数量，已写入 pending-clarifications.md）
+- 其他潜在问题（政策过期、枚举值不在 domain-config 中等）
 ```
 
 ---
