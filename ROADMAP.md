@@ -289,9 +289,9 @@ superseded_by: policies/xxx-new-policy.md   # 可选
 用户定期审阅 schema-suggestions.md，勾选确认后，下次 Lint 时自动将这些字段正式化至 domain-config.xlsx。
 
 **交付物**
-- [ ] 更新 ingest.md，加入两阶段 Ingest 逻辑
-- [ ] 定义 auto_discovered: 块的标准格式
-- [ ] 创建 wiki/schema-suggestions.md 模板和填写规范
+- [x] 更新 ingest.md，加入两阶段 Ingest 逻辑
+- [x] 定义 auto_discovered: 块的标准格式
+- [x] 创建 wiki/schema-suggestions.md 模板和填写规范
 
 ---
 
@@ -328,9 +328,9 @@ Type C - 逻辑矛盾（A说X是优势，B说X是劣势）
 ```
 
 **交付物**
-- [ ] 更新 ingest.md，加入冲突检测逻辑和三类冲突处理方式
-- [ ] 创建 wiki/pending-clarifications.md 模板
-- [ ] 更新 lint.md，将 pending-clarifications.md 纳入健康检查
+- [x] 更新 ingest.md，加入冲突检测逻辑和三类冲突处理方式
+- [x] 创建 wiki/pending-clarifications.md 模板
+- [x] 更新 lint.md，将 pending-clarifications.md 纳入健康检查（检查项 7 冲突积压 + 检查项 8 Schema 建议积压）
 
 ---
 
