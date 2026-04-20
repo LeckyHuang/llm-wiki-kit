@@ -35,7 +35,7 @@
 | v0.1 | Bootstrap | 框架初始化 + 首批方案入库 + wiki-app 生产部署 | ✅ 已完成 |
 | v1.0 | Foundation | 通用化 + 版本管控 + 知识生命周期 | ✅ 已完成 |
 | v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区约定 | ✅ 已完成 |
-| v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | 🔲 待启动 |
+| v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | ✅ 已完成 |
 | v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | 🔲 待启动 |
 | v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | 🔲 待启动 |
 | v3.0 | Expansion | 外脑机制 + 自动触发 + 服务端流水线 | 🔲 待启动 |
@@ -336,9 +336,9 @@ Type C - 逻辑矛盾（A说X是优势，B说X是劣势）
 
 ### v2.0 里程碑验收标准
 
-- [ ] Ingest 一份新方案后，能在 `wiki/schema-suggestions.md` 中看到至少 3 条有价值的自发现字段建议
-- [ ] 对同一实体的矛盾描述，`wiki/pending-clarifications.md` 能正确捕获并分类呈现
-- [ ] 用一份非展厅行业的 domain-config.xlsx 完成 Ingest，自发现字段机制同样生效（通用性验证）
+- [x] Ingest 一份新方案后，能在 `wiki/schema-suggestions.md` 中看到至少 3 条有价值的自发现字段建议
+- [x] 对同一实体的矛盾描述，`wiki/pending-clarifications.md` 能正确捕获并分类呈现
+- [ ] 用一份非展厅行业的 domain-config.xlsx 完成 Ingest，自发现字段机制同样生效（通用性验证，待实测）
 
 ---
 
