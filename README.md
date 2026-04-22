@@ -17,7 +17,8 @@
 
 ```
 wiki/（知识层）
-    ├─ 方案生产应用（wiki-app）
+    ├─ 方案生产应用（wiki-app）       ← 内部用户，浏览器访问
+    ├─ API Gateway（api-gateway）    ← 外部系统，API Key 接入
     ├─ AI 策展 / 数字人问答
     ├─ AI 陪练 / 智能推荐
     └─ 任意其他 AI 应用…
@@ -31,20 +32,22 @@ wiki/（知识层）
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  知识层（AI 驱动，本地操作）                                │
+│  知识层（AI 驱动，本地操作）                               │
 │                                                           │
-│  schema/domain-config.xlsx  定义行业字段与分类枚举          │
+│  schema/domain-config.xlsx  定义行业字段与分类枚举         │
 │           ↓                                               │
 │  sources/  →  prompts/ingest.md  →  wiki/                │
-│  原始材料      LLM 摄入提示词         结构化知识库           │
+│  原始材料      LLM 摄入提示词         结构化知识库          │
 │  （文档/多媒体）                   （Frontmatter + Markdown）│
 └──────────────────────┬───────────────────────────────────┘
                        │  wiki/ 目录（标准输出，不感知下游）
-          ┌────────────┼────────────┬─────────────┐
-          ▼            ▼            ▼             ▼
-     方案生产应用    AI 策展      智能问答      AI 陪练…
-     （wiki-app）  （策展配屏）  （数字人）   （话术训练）
-   各应用自定义过滤逻辑，按需消费 wiki 字段和资产引用
+          ┌────────────┼──────────────┬─────────────┐
+          ▼            ▼              ▼             ▼
+     方案生产应用    API Gateway    AI 策展      智能问答…
+     （wiki-app）  （api-gateway） （策展配屏）  （数字人）
+     内部用户访问   外部系统接入
+                   X-API-Key 认证
+                   限流 + 权限管控
 ```
 
 ---
@@ -66,7 +69,7 @@ wiki/（知识层）
 
 ### 第二步：知识入库（Ingest）
 
-将原始材料放入 `sources/` 对应子目录（PDF / PPT / Word 放 `proposals/`，视频 / 图片 / HTML 放 `media/`，人工补充的讲解词等放 `annotations/`），在 Claude Code 或 Cursor 中执行：
+将原始材料放入 `sources/` 对应子目录，在 Claude Code 或 Cursor 中执行：
 
 ```
 # 复制 prompts/ingest.md 的内容给 LLM，替换文件路径后运行
@@ -74,7 +77,7 @@ wiki/（知识层）
 
 LLM 将自动读取 `domain-config.xlsx`，提取关键信息并写入 `wiki/` 目录。
 
-### 第三步：部署 Web 应用
+### 第三步：部署 Web 应用（内部用户）
 
 ```bash
 cd wiki-app
@@ -83,12 +86,24 @@ pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-### 第四步：同步知识库到服务器
+### 第四步：部署 API Gateway（外部系统接入，可选）
+
+```bash
+cd api-gateway
+cp .env.example .env      # 填写 LLM API Key 和 GATEWAY_ADMIN_KEY
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8001
+# Swagger 文档：http://localhost:8001/docs
+```
+
+外部系统注册与接入流程详见 [`api-gateway/README.md`](api-gateway/README.md)。
+
+### 第五步：同步知识库到服务器
 
 本地 Ingest 更新 `wiki/` 后，推送到服务器：
 
 ```bash
-rsync -avz wiki/ user@your-server:/path/to/wiki-app/wiki/
+rsync -avz wiki/ user@your-server:/path/to/project/wiki/
 ```
 
 ---
@@ -116,12 +131,23 @@ llm-wiki-kit/
 │   ├── media/                # 多媒体资产（视频 / 图片 / HTML）
 │   └── annotations/          # 人工补充材料（讲解词 / 问答对，可选）
 │
-├── wiki-app/                 # Web 查询应用
-│   ├── app.py                # FastAPI 后端（含生命周期过滤）
-│   ├── db.py                 # SQLite 数据库
+├── wiki-app/                 # 内部 Web 查询应用
+│   ├── app.py                # FastAPI 后端（JWT 认证 + 生命周期过滤）
+│   ├── db.py                 # SQLite 数据库（用户 / 日志 / 反馈）
 │   ├── static/index.html     # 单页前端
 │   ├── prompts/              # LLM 提示词（可后台热更新）
 │   └── .env.example          # 环境变量说明
+│
+├── api-gateway/              # 对外 API Gateway（外部系统接入）
+│   ├── main.py               # FastAPI 网关入口（限流 + 请求日志）
+│   ├── auth.py               # API Key 认证 + 滑动窗口限流
+│   ├── wiki_reader.py        # 知识库读取（共享 wiki/ 目录）
+│   ├── llm_client.py         # LLM 提供商封装
+│   ├── routers/              # 路由模块（query / wiki / gateway 管理）
+│   ├── models/               # Pydantic 请求 / 响应模型
+│   └── .env.example          # 环境变量说明
+│
+├── tools/                    # 工具脚本
 │
 ├── SCHEMA.md                 # 向后兼容入口（v0.1 遗留）
 ├── CLAUDE.md                 # Claude Code 配置
@@ -136,11 +162,13 @@ llm-wiki-kit/
 
 - **领域可配置**：替换 `domain-config.xlsx` 即可切换行业，无需改代码
 - **应用解耦**：wiki 不感知任何下游应用，新增应用场景无需修改知识层；各应用自定义消费逻辑
+- **对外 API 接入**：api-gateway 提供标准 REST API（API Key 认证 + 限速），任意外部系统可接入同一知识库
 - **资产引用**：Frontmatter `assets[]` 字段携带文件路径或在线 URL，策展 / 问答等应用可直接提取
 - **场景标签**：`scenarios[]` 字段标注实体适用场景，下游应用快速精准过滤
 - **正文分区**：`[narration]` / `[qa]` / `[training]` 等可选分区，不同应用按需提取对应内容
 - **版本管控**：同一项目多次 Ingest 自动执行版本比对，旧值保存至 `history:` 块
 - **知识生命周期**：三态模型（active / outdated / archived），Lint 自动检测过期政策和证书
+- **Schema 自进化**：Ingest 自动发现 Schema 未覆盖的高价值字段，冲突内容触发人工裁决而非静默覆盖
 
 ---
 
@@ -152,7 +180,7 @@ llm-wiki-kit/
 git clone https://github.com/LeckyHuang/llm-wiki-kit.git my-wiki
 cd my-wiki
 # 编辑 schema/domain-config.xlsx → 填写新行业配置
-# 放入 sources/ 原始材料 → 执行 Ingest → 部署 wiki-app
+# 放入 sources/ 原始材料 → 执行 Ingest → 部署 wiki-app / api-gateway
 ```
 
 ---
@@ -177,10 +205,11 @@ cd my-wiki
 | v0.1 | Bootstrap | 框架初始化 + 首批入库 + 生产部署 | ✅ |
 | v1.0 | Foundation | 通用化 + 版本管控 + 生命周期 | ✅ |
 | v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区 | ✅ |
-| v2.0 | Intelligence | 自发现字段 + 冲突澄清 + 反馈反哺 | 🔲 |
-| v2.5 | Graph Layer | 知识图谱（Graphify 集成） | 🔲 |
-| v3.0 | Expansion | 多媒体资产深化 + 外脑机制 + 自动触发 | 🔲 |
-| v4.0 | Production | 方案生产闭环（md → HTML → PPT） | 🔲 |
+| v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | ✅ |
+| v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | 🔲 |
+| v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | 🔲 |
+| v3.0 | Expansion | 外脑机制 + 自动触发 + 服务端流水线 | 🔲 |
+| v4.0 | Production | 方案生产闭环（md → HTML → PPT） | ⏸ 暂缓 |
 
 详见 [ROADMAP.md](ROADMAP.md)
 

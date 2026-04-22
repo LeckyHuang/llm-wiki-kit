@@ -2,7 +2,7 @@
 
 > 本文档记录 llm-wiki-kit 知识库系统从初始框架到完整知识中台的分阶段演进计划。  
 > 每个版本独立可交付，上一版本是下一版本的前提。  
-> 最后更新：2026-04-20
+> 最后更新：2026-04-22
 
 ---
 
@@ -947,7 +947,16 @@ llm-wiki-kit/                   # 项目根目录
 │
 ├── world-sources/              # 外部原始材料（不进 git，v3.0 新增）
 │
-├── wiki-app/                   # web 查询应用（独立演进，下游应用）
+├── wiki-app/                   # 内部 Web 查询应用（JWT 认证，面向内部用户）
+│
+├── api-gateway/                # 对外 API Gateway（API Key 认证，面向外部系统）
+│   ├── main.py                 # FastAPI 网关入口（限流 + 请求日志中间件）
+│   ├── auth.py                 # API Key 认证 + 滑动窗口限流
+│   ├── wiki_reader.py          # 知识库读取（共享 wiki/ 目录，零数据冗余）
+│   ├── llm_client.py           # LLM 提供商封装
+│   ├── routers/                # query / wiki / gateway 管理路由
+│   ├── models/                 # Pydantic 请求/响应模型
+│   └── .env.example
 │
 └── wiki/                       # 知识库主体（进 git）
     ├── index.md
@@ -982,28 +991,27 @@ llm-wiki-kit/                   # 项目根目录
 
 ## 下一步行动
 
-**当前状态（2026-04-20）**：v0.1 ~ v1.1 均已完成。
+**当前状态（2026-04-22）**：v0.1 ~ v2.0 均已完成。
 
 - 知识核心层架构稳定，wiki-app 生产运行正常
-- 今日完成：entity_id 批量补填（82 个文件，`tools/migrate_v1_1.py` 脚本处理）
-- 版本路线图经评估调整：新增 v2.1 Experience，v2.5 合并媒体深化+图谱路由，普适性原则显式化
+- v2.0 完成：Ingest 两阶段自发现字段、冲突澄清机制、pending-clarifications.md / schema-suggestions.md 均已就绪
+- **本周新增**：`api-gateway/` — 将知识库核心能力封装为对外 REST API（API Key 认证 + 限流 + 访问日志），外部系统可直接接入，详见 [`api-gateway/README.md`](api-gateway/README.md)
 
-**当前版本遗留验收（v1.0/v1.1）**：
+**当前版本遗留验收（v1.0 / v1.1 / v2.0）**：
 
 ```
 1. 用非展厅行业的 domain-config.xlsx 完成一次 Ingest，验证通用化效果
 2. 对同一项目执行两次 Ingest（不同版本），验证版本管控和 history 块
 3. Ingest 一个带资产引用的实体，验证 assets 字段写入和 scenarios 标签
 4. 执行 Lint 检测，验证生命周期检测和归档建议
+5. 用 api-gateway 接入一个外部系统，验证 API Key 全流程
 ```
 
 **下一版本启动条件**：
 
 ```
-v2.0 启动：wiki 内容可验证"自发现字段"价值（建议 100+ 页）
-
 v2.1 启动：有第一批事件报告（接待报告/运营报告）待摄入
-  - 可与 v2.0 并行推进，两者无强依赖
+  - 可与 api-gateway 接入工作并行推进
   - domain-config.xlsx 需先扩展 Experience Types Sheet
 
 v2.5 启动（提前触发，满足任一）：
