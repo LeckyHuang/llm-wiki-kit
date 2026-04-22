@@ -1,5 +1,5 @@
 """
-查询相关的请求/响应模型
+查询相关的请求/响应模型（领域无关通用版本）
 """
 from typing import Optional
 from pydantic import BaseModel, Field
@@ -7,25 +7,37 @@ from pydantic import BaseModel, Field
 
 class QueryRequest(BaseModel):
     """结构化知识查询请求"""
-    industry: Optional[str] = Field(None, description="目标行业（如：通信、金融、医疗），留空表示不限")
-    hall_type: Optional[str] = Field(None, description="展厅类型，留空表示不限")
-    project_type: Optional[str] = Field(None, description="项目类型：新建 / 改造升级 / 咨询规划 / 运营维护")
-    include_competitors: bool = Field(False, description="是否加载竞品参考内容")
-    include_policies: bool = Field(False, description="是否加载政策依据内容")
-    include_credentials: bool = Field(False, description="是否加载资质与案例内容")
+    industry: Optional[str] = Field(
+        None,
+        description="行业 / 领域筛选（对应 wiki/industries/ 目录），留空表示不限",
+    )
+    hall_type: Optional[str] = Field(
+        None,
+        description="二级分类筛选（对应 wiki/hall-types/ 目录），留空表示不限",
+    )
+    project_type: Optional[str] = Field(
+        None,
+        description="项目阶段或类型（自由文本，传入 prompt 作为上下文参考）",
+    )
+    include_competitors: bool = Field(False, description="是否加载竞品参考内容（wiki/competitors/）")
+    include_policies: bool = Field(False, description="是否加载政策依据内容（wiki/policies/）")
+    include_credentials: bool = Field(False, description="是否加载资质与案例内容（wiki/credentials/）")
     question: Optional[str] = Field(None, description="补充问题或说明（附加到查询末尾）")
-    custom_prompt: Optional[str] = Field(None, description="自定义查询指令（覆盖默认提示词模板）")
+    custom_prompt: Optional[str] = Field(
+        None,
+        description="完全自定义的查询指令，设置后将跳过默认 prompt 模板直接使用",
+    )
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "industry": "通信",
-                "hall_type": "企业展厅",
+                "industry": "金融",
+                "hall_type": "品牌旗舰店",
                 "project_type": "新建",
                 "include_competitors": True,
                 "include_policies": False,
                 "include_credentials": False,
-                "question": "重点关注沉浸式体验模块",
+                "question": "重点关注数字化互动体验部分",
             }
         }
     }
@@ -37,7 +49,7 @@ class ChatRequest(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "example": {"message": "我们的展厅方案在政务行业有哪些成功案例？"}
+            "example": {"message": "知识库中有哪些关于智慧零售的成功案例？"}
         }
     }
 

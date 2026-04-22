@@ -1,10 +1,14 @@
 """
 Wiki 文件读取器
-复用 wiki-app 中的知识库读取逻辑，支持：
+通用知识库读取，支持：
 - 生命周期过滤（archived 排除，outdated 加警示前缀）
-- 按行业、展厅类型、场景过滤
+- 按行业、分类等维度过滤
 - 字符数截断
+
+WIKI_ALWAYS_LOAD：每次查询必加载的子目录，逗号分隔，由环境变量配置。
+不同领域的 wiki 填写自己的常驻目录即可，留空则不强制加载任何目录。
 """
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +16,9 @@ import frontmatter as _frontmatter
 
 from config import MAX_CHAT_WIKI_CHARS, MAX_WIKI_CHARS, WIKI_PATH
 
-ALWAYS_LOAD = ["modules", "proposal-stages"]
+# 从环境变量读取，各领域自行配置；留空则不强制加载任何目录
+_always_load_raw = os.getenv("WIKI_ALWAYS_LOAD", "")
+ALWAYS_LOAD: list[str] = [d.strip() for d in _always_load_raw.split(",") if d.strip()]
 _OUTDATED_PREFIX = "⚠️ [此内容可能已过期，请核实后使用]\n\n"
 
 
