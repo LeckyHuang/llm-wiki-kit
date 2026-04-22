@@ -11,8 +11,11 @@ from typing import Optional
 
 from fastapi import Header, HTTPException, Request  # noqa: F401
 
-from config import DEFAULT_RATE_LIMIT, GATEWAY_ADMIN_KEY
+from config import DEV_API_KEY, DEFAULT_RATE_LIMIT, GATEWAY_ADMIN_KEY
 from db import get_conn
+
+# 开发模式上下文（全权限、不限速、不写 DB）
+_DEV_APP_CONTEXT = None  # 延迟初始化，避免循环导入
 
 # ─── 限流：滑动窗口（1 分钟） ────────────────────────────────
 _rate_windows: dict[int, deque] = defaultdict(deque)
@@ -58,6 +61,20 @@ class AppContext:
 async def get_app_context(request: Request, x_api_key: Optional[str] = Header(None)) -> AppContext:
     if not x_api_key:
         raise HTTPException(status_code=401, detail="缺少 X-API-Key 请求头")
+
+    # ── DEV_API_KEY 快速通道（仅开发阶段，生产环境不设置此变量）──
+    if DEV_API_KEY and x_api_key == DEV_API_KEY:
+        ctx = AppContext(
+            app_id=0,
+            app_name="[dev]",
+            key_id=0,
+            scopes="query,chat,wiki",
+            rate_limit=9999,
+        )
+        request.state.app_id = ctx.app_id
+        request.state.key_id = ctx.key_id
+        request.state.app_name = ctx.app_name
+        return ctx
 
     key_hashed = hash_key(x_api_key)
     conn = get_conn()

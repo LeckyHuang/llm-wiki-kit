@@ -50,3 +50,8 @@ if not GATEWAY_ADMIN_KEY:
 
 # ─── 全局限流默认值 ───────────────────────────────────────────
 DEFAULT_RATE_LIMIT = int(os.getenv("DEFAULT_RATE_LIMIT", "60"))   # 次/分钟
+
+# ─── 开发调试万能密钥 ─────────────────────────────────────────
+# 设置后可绕过数据库校验，拥有全部权限、不限速。
+# 生产环境：不设置此变量（或置空）即自动关闭。
+DEV_API_KEY = os.getenv("DEV_API_KEY", "").strip()
