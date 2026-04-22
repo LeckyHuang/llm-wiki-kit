@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知识摄入工作台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    .spinner {
+      border: 3px solid #e5e7eb;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .review-tab-active   { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+    .review-tab-inactive { border-bottom: 2px solid transparent; color: #6b7280; }
+    .review-tab-inactive:hover { color: #374151; }
+
+    #sse-log {
+      font-family: "Menlo", "Consolas", "Courier New", monospace;
+      font-size: 0.75rem;
+      line-height: 1.65;
+      word-break: break-all;
+    }
+
+    /* markdown body styles */
+    #preview-body h2 { font-size: 1rem; font-weight: 700; margin: 1rem 0 0.4rem; color: #1e40af; }
+    #preview-body h3 { font-size: 0.9rem; font-weight: 600; margin: 0.8rem 0 0.3rem; color: #374151; }
+    #preview-body p  { margin: 0.3rem 0; font-size: 0.875rem; color: #374151; }
+    #preview-body ul, #preview-body ol { padding-left: 1.2rem; margin: 0.3rem 0; }
+    #preview-body li { font-size: 0.875rem; color: #374151; margin: 0.15rem 0; }
+    #preview-body strong { color: #111827; }
+    #preview-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.8rem 0; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-xs text-gray-400 hover:text-blue-600 transition-colors">&larr; 返回主页</a>
+      <span class="text-gray-300">|</span>
+      <h1 class="text-sm font-semibold text-gray-800">知识摄入工作台</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-gray-500" id="header-username"></span>
+      <button onclick="doLogout()"
+              class="text-xs text-gray-400 hover:text-red-500 transition-colors">退出</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-8 space-y-4">
+
+  <!-- ════════════════════════════════════════════════════════
+       STATE 1: idle — 上传入口
+  ════════════════════════════════════════════════════════ -->
+  <div id="state-idle">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+      <h2 class="text-sm font-semibold text-gray-700 mb-6">上传文档</h2>
+
+      <!-- Dropzone -->
+      <div id="dropzone"
+           class="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center cursor-pointer transition-all hover:border-blue-300 hover:bg-blue-50"
+           ondragover="event.preventDefault(); this.classList.add('border-blue-400','bg-blue-50')"
+           ondragleave="this.classList.remove('border-blue-400','bg-blue-50')"
+           ondrop="handleDrop(event)"
+           onclick="document.getElementById('file-input').click()">
+        <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <p class="text-sm text-gray-500">将文件拖放到此处，或
+          <span class="text-blue-600 underline underline-offset-2">点击选择文件</span>
+        </p>
+        <p class="text-xs text-gray-400 mt-1.5">支持 PDF、PPTX、DOCX &middot; 最大 50 MB</p>
+      </div>
+      <input id="file-input" type="file" accept=".pdf,.pptx,.docx,.txt,.md"
+             class="hidden" onchange="handleFileSelect(event)" />
+
+      <!-- 已选文件 chip -->
+      <div id="file-chip"
+           class="hidden mt-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+        <svg class="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <span id="file-chip-name" class="text-sm text-blue-700 flex-1 truncate"></span>
+        <span id="file-chip-size" class="text-xs text-gray-400 flex-shrink-0"></span>
+        <button onclick="clearFile()" class="text-gray-400 hover:text-red-500 text-sm ml-1 transition-colors">&times;</button>
+      </div>
+
+      <p id="idle-error" class="hidden mt-3 text-xs text-red-500"></p>
+
+      <button id="btn-start" onclick="startIngest()" disabled
+              class="mt-6 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-xl text-sm transition-colors">
+        开始摄入
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       STATE 2: uploading
+  ════════════════════════════════════════════════════════ -->
+  <div id="state-uploading" class="hidden">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-16 flex flex-col items-center gap-4">
+      <div class="spinner"></div>
+      <p class="text-sm text-gray-500">正在上传文件...</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       STATE 3: processing — SSE token 流
+  ════════════════════════════════════════════════════════ -->
+  <div id="state-processing" class="hidden">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="spinner"></div>
+        <div>
+          <p class="text-sm font-medium text-gray-700">LLM 正在处理中</p>
+          <p class="text-xs text-gray-400" id="processing-filename"></p>
+        </div>
+      </div>
+      <!-- 深色终端日志窗口 -->
+      <div class="bg-gray-900 rounded-xl p-4 h-72 overflow-y-auto" id="sse-scroll-box">
+        <pre id="sse-log" class="text-green-400 whitespace-pre-wrap"></pre>
+      </div>
+      <p class="text-xs text-gray-400 mt-2 text-right" id="token-count">0 字符</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       STATE 4: reviewing — 三栏审阅面板
+  ════════════════════════════════════════════════════════ -->
+  <div id="state-reviewing" class="hidden space-y-4">
+
+    <!-- 摘要信息栏 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 grid grid-cols-3 gap-4">
+      <div>
+        <p class="text-xs text-gray-400 mb-0.5">操作类型</p>
+        <p class="text-sm font-semibold text-gray-800" id="review-action"></p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 mb-0.5">目标路径</p>
+        <p class="text-sm font-mono text-blue-600 truncate" id="review-wiki-path"></p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 mb-0.5">摘要</p>
+        <p class="text-sm text-gray-600 leading-snug" id="review-summary"></p>
+      </div>
+    </div>
+
+    <!-- 审阅 Tab 面板 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <!-- Tab 标签栏 -->
+      <div class="flex border-b border-gray-100 px-4 gap-5">
+        <button id="rtab-preview"   onclick="switchReviewTab('preview')"
+                class="review-tab-active   py-3 text-sm transition-all">实体预览</button>
+        <button id="rtab-conflicts" onclick="switchReviewTab('conflicts')"
+                class="review-tab-inactive py-3 text-sm transition-all flex items-center gap-1.5">
+          冲突处理
+          <span id="badge-conflicts"
+                class="hidden bg-red-100 text-red-600 text-xs font-medium rounded-full px-1.5 py-0.5"></span>
+        </button>
+        <button id="rtab-schema"    onclick="switchReviewTab('schema')"
+                class="review-tab-inactive py-3 text-sm transition-all flex items-center gap-1.5">
+          Schema 建议
+          <span id="badge-schema"
+                class="hidden bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full px-1.5 py-0.5"></span>
+        </button>
+      </div>
+
+      <!-- Tab 内容：实体预览 -->
+      <div id="rpanel-preview" class="p-6">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Frontmatter 字段</h3>
+        <table class="w-full text-sm border-collapse mb-6">
+          <tbody id="preview-fm-tbody"></tbody>
+        </table>
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">正文预览</h3>
+        <div id="preview-body" class="leading-relaxed"></div>
+      </div>
+
+      <!-- Tab 内容：冲突处理 -->
+      <div id="rpanel-conflicts" class="p-6 hidden">
+        <p id="no-conflicts" class="text-sm text-gray-400 text-center py-8">无冲突 — 可直接提交</p>
+        <div id="conflicts-list" class="space-y-4"></div>
+      </div>
+
+      <!-- Tab 内容：Schema 建议 -->
+      <div id="rpanel-schema" class="p-6 hidden">
+        <p id="no-schema" class="text-sm text-gray-400 text-center py-8">LLM 未发现需新增的 Schema 字段</p>
+        <p id="schema-hint" class="hidden text-xs text-gray-500 mb-4">
+          勾选您认为有价值的字段，系统将在入库时记录到 Schema 建议日志，供后续 domain-config 更新参考。
+        </p>
+        <div id="schema-list" class="space-y-3"></div>
+      </div>
+    </div>
+
+    <!-- 提交操作栏 -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+      <p class="text-xs text-gray-400">确认以上信息无误后点击入库</p>
+      <div class="flex items-center gap-3">
+        <button onclick="resetToIdle()"
+                class="text-sm text-gray-500 hover:text-gray-700 px-4 py-2 border border-gray-200 rounded-xl transition-colors">
+          取消
+        </button>
+        <button id="btn-commit" onclick="doCommit()"
+                class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-6 py-2 rounded-xl transition-colors flex items-center gap-2">
+          确认入库
+        </button>
+      </div>
+    </div>
+    <p id="commit-error" class="hidden text-xs text-red-500 text-center"></p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       STATE 5: committed — 成功
+  ════════════════════════════════════════════════════════ -->
+  <div id="state-committed" class="hidden">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+      <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <h2 class="text-lg font-semibold text-gray-800 mb-2">摄入成功！</h2>
+      <p class="text-sm text-gray-500 mb-1">
+        已写入：<span id="committed-path" class="font-mono text-blue-600"></span>
+      </p>
+      <p class="text-sm text-gray-400 mb-8" id="committed-appended"></p>
+      <button onclick="resetToIdle()"
+              class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-8 py-2.5 rounded-xl transition-colors">
+        继续摄入
+      </button>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── JavaScript ──────────────────────────────────────────── -->
+<script>
+'use strict';
+
+// ─── 状态 ────────────────────────────────────────────────────
+let _token       = null;
+let _currentUser = null;
+let _selectedFile = null;
+let _jobId       = null;
+let _parsedResult = null;
+let _sseSource   = null;
+
+const ALL_STATES = ['idle', 'uploading', 'processing', 'reviewing', 'committed'];
+
+function showState(name) {
+  ALL_STATES.forEach(s => {
+    document.getElementById(`state-${s}`).classList.toggle('hidden', s !== name);
+  });
+}
+
+// ─── 启动时鉴权 ───────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('wiki_token');
+  const user  = localStorage.getItem('wiki_user');
+  if (!token || !user) {
+    window.location.href = '/';
+    return;
+  }
+  let parsed;
+  try { parsed = JSON.parse(user); } catch { window.location.href = '/'; return; }
+
+  if (parsed.role !== 'admin') {
+    alert('此页面仅限管理员访问');
+    window.location.href = '/';
+    return;
+  }
+
+  _token = token;
+  _currentUser = parsed;
+  document.getElementById('header-username').textContent = parsed.name || '';
+  showState('idle');
+});
+
+function doLogout() {
+  if (_sseSource) { _sseSource.close(); _sseSource = null; }
+  localStorage.removeItem('wiki_token');
+  localStorage.removeItem('wiki_user');
+  window.location.href = '/';
+}
+
+// ─── 文件选择 ─────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('border-blue-400', 'bg-blue-50');
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) setFile(file);
+}
+
+function setFile(file) {
+  const allowed = ['.pdf', '.pptx', '.docx', '.txt', '.md'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  const errEl = document.getElementById('idle-error');
+
+  if (!allowed.includes(ext)) {
+    errEl.textContent = `不支持的文件类型 ${ext}，请上传 PDF / PPTX / DOCX`;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const maxBytes = 50 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    errEl.textContent = `文件过大（${(file.size / 1024 / 1024).toFixed(1)} MB），限制为 50 MB`;
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  errEl.classList.add('hidden');
+  _selectedFile = file;
+
+  const chip = document.getElementById('file-chip');
+  chip.classList.remove('hidden');
+  document.getElementById('file-chip-name').textContent = file.name;
+  document.getElementById('file-chip-size').textContent =
+    file.size >= 1024 * 1024
+      ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+      : `${Math.round(file.size / 1024)} KB`;
+  document.getElementById('btn-start').disabled = false;
+}
+
+function clearFile() {
+  _selectedFile = null;
+  document.getElementById('file-chip').classList.add('hidden');
+  document.getElementById('file-input').value = '';
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('idle-error').classList.add('hidden');
+}
+
+// ─── 主流程：上传 → SSE ────────────────────────────────────────
+async function startIngest() {
+  if (!_selectedFile) return;
+
+  showState('uploading');
+
+  // 1. 上传文件
+  const formData = new FormData();
+  formData.append('file', _selectedFile);
+  let jobId;
+  try {
+    const res = await fetch('/api/admin/ingest/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${_token}` },
+      body: formData,
+    });
+    if (res.status === 401) { doLogout(); return; }
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || `上传失败（HTTP ${res.status}）`);
+    }
+    const data = await res.json();
+    jobId = data.job_id;
+    _jobId = jobId;
+  } catch (err) {
+    showState('idle');
+    const errEl = document.getElementById('idle-error');
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  // 2. 打开 SSE 连接
+  showState('processing');
+  document.getElementById('processing-filename').textContent = _selectedFile.name;
+  document.getElementById('sse-log').textContent = '';
+  document.getElementById('token-count').textContent = '0 字符';
+
+  const sseUrl = `/api/admin/ingest/${jobId}/run?token=${encodeURIComponent(_token)}`;
+  _sseSource = new EventSource(sseUrl);
+
+  let charCount = 0;
+  const logEl     = document.getElementById('sse-log');
+  const scrollBox = document.getElementById('sse-scroll-box');
+  const countEl   = document.getElementById('token-count');
+
+  // token 流 —— 逐字符追加到日志窗口
+  _sseSource.addEventListener('token', e => {
+    try {
+      const { text } = JSON.parse(e.data);
+      logEl.textContent += text;
+      charCount += text.length;
+      countEl.textContent = `${charCount} 字符`;
+      scrollBox.scrollTop = scrollBox.scrollHeight;
+    } catch {}
+  });
+
+  // LLM 输出解析完成
+  _sseSource.addEventListener('result', e => {
+    try { _parsedResult = JSON.parse(e.data); } catch {}
+  });
+
+  // 全部完成
+  _sseSource.addEventListener('done', () => {
+    _sseSource.close();
+    _sseSource = null;
+    if (_parsedResult) {
+      buildReviewPanel(_parsedResult);
+      showState('reviewing');
+    } else {
+      showState('idle');
+      const errEl = document.getElementById('idle-error');
+      errEl.textContent = '处理完成但未能解析 LLM 输出，请重试';
+      errEl.classList.remove('hidden');
+    }
+  });
+
+  // LLM 处理出错
+  _sseSource.addEventListener('error', e => {
+    _sseSource.close();
+    _sseSource = null;
+    let msg = 'LLM 处理失败，请重试';
+    try { msg = JSON.parse(e.data).message; } catch {}
+    showState('idle');
+    const errEl = document.getElementById('idle-error');
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+  });
+
+  // 网络级 SSE 错误（防止浏览器自动重连）
+  _sseSource.onerror = () => {
+    _sseSource.close();
+    _sseSource = null;
+    const isProcessing = !document.getElementById('state-processing').classList.contains('hidden');
+    if (isProcessing) {
+      showState('idle');
+      const errEl = document.getElementById('idle-error');
+      errEl.textContent = '连接中断，请刷新页面后重试';
+      errEl.classList.remove('hidden');
+    }
+  };
+}
+
+// ─── 审阅面板构建 ─────────────────────────────────────────────
+function buildReviewPanel(result) {
+  // 摘要栏
+  const actionMap = { create: '新建条目', update: '更新条目' };
+  document.getElementById('review-action').textContent   = actionMap[result.action] || result.action || '—';
+  document.getElementById('review-wiki-path').textContent = result.wiki_path || '—';
+  document.getElementById('review-summary').textContent  = result.summary || '—';
+
+  // Frontmatter 表格
+  const fm    = result.frontmatter || {};
+  const tbody = document.getElementById('preview-fm-tbody');
+  tbody.innerHTML = Object.entries(fm).map(([k, v]) => `
+    <tr class="border-b border-gray-50 hover:bg-gray-50">
+      <td class="py-1.5 pr-4 text-xs text-gray-500 font-medium w-36 align-top">${esc(k)}</td>
+      <td class="py-1.5 text-xs text-gray-800 break-all">
+        ${esc(Array.isArray(v) ? v.join(', ') : String(v ?? ''))}
+      </td>
+    </tr>`).join('');
+
+  // 正文 markdown 渲染
+  document.getElementById('preview-body').innerHTML =
+    marked.parse(result.body || '（无正文）');
+
+  // 冲突处理
+  const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
+  const cBadge = document.getElementById('badge-conflicts');
+  if (conflicts.length > 0) {
+    cBadge.textContent = conflicts.length;
+    cBadge.classList.remove('hidden');
+    document.getElementById('no-conflicts').classList.add('hidden');
+    document.getElementById('conflicts-list').innerHTML = conflicts.map(c => `
+      <div class="border border-red-100 bg-red-50 rounded-xl p-4" data-conflict-id="${esc(c.id)}">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs bg-red-600 text-white rounded px-2 py-0.5 font-medium">Type ${esc(c.type)}</span>
+          <span class="text-sm font-semibold text-gray-800">${esc(c.field)}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="bg-white border border-red-100 rounded-lg p-3">
+            <p class="text-xs text-gray-400 mb-1">现有值</p>
+            <p class="text-xs text-gray-700 break-all">${esc(c.existing_value)}</p>
+          </div>
+          <div class="bg-white border border-blue-100 rounded-lg p-3">
+            <p class="text-xs text-gray-400 mb-1">新值</p>
+            <p class="text-xs text-gray-700 break-all">${esc(c.new_value)}</p>
+          </div>
+        </div>
+        <p class="text-xs text-gray-500 mb-3 italic">${esc(c.recommendation)}</p>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-1.5 text-xs cursor-pointer text-gray-700">
+            <input type="radio" name="conflict-${esc(c.id)}" value="new" checked
+                   class="accent-blue-600" />
+            采用新值
+          </label>
+          <label class="flex items-center gap-1.5 text-xs cursor-pointer text-gray-700">
+            <input type="radio" name="conflict-${esc(c.id)}" value="old"
+                   class="accent-blue-600" />
+            保留旧值
+          </label>
+          <label class="flex items-center gap-1.5 text-xs cursor-pointer text-gray-700">
+            <input type="radio" name="conflict-${esc(c.id)}" value="both"
+                   class="accent-blue-600" />
+            两者保留
+          </label>
+        </div>
+      </div>`).join('');
+  } else {
+    cBadge.classList.add('hidden');
+  }
+
+  // Schema 建议
+  const suggestions = Array.isArray(result.schema_suggestions) ? result.schema_suggestions : [];
+  const sBadge = document.getElementById('badge-schema');
+  if (suggestions.length > 0) {
+    sBadge.textContent = suggestions.length;
+    sBadge.classList.remove('hidden');
+    document.getElementById('no-schema').classList.add('hidden');
+    document.getElementById('schema-hint').classList.remove('hidden');
+    document.getElementById('schema-list').innerHTML = suggestions.map(s => `
+      <div class="border border-yellow-100 bg-yellow-50 rounded-xl p-4 flex items-start gap-3">
+        <input type="checkbox" id="schema-${esc(s.field)}" value="${esc(s.field)}"
+               class="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0 cursor-pointer" />
+        <label for="schema-${esc(s.field)}" class="cursor-pointer flex-1">
+          <div class="flex items-center gap-2 mb-1">
+            <code class="text-xs bg-yellow-200 text-yellow-900 rounded px-1.5 py-0.5">${esc(s.field)}</code>
+            <span class="text-xs text-gray-400">置信度：${esc(s.confidence)}</span>
+          </div>
+          <p class="text-xs text-gray-600">${esc(s.reason)}</p>
+          <p class="text-xs text-gray-400 mt-0.5">示例值：${esc(s.example_value)}</p>
+        </label>
+      </div>`).join('');
+  } else {
+    sBadge.classList.add('hidden');
+  }
+
+  switchReviewTab('preview');
+}
+
+const REVIEW_TABS = ['preview', 'conflicts', 'schema'];
+
+function switchReviewTab(tab) {
+  REVIEW_TABS.forEach(t => {
+    document.getElementById(`rtab-${t}`).className =
+      `${t === tab ? 'review-tab-active' : 'review-tab-inactive'} py-3 text-sm transition-all flex items-center gap-1.5`;
+    document.getElementById(`rpanel-${t}`).classList.toggle('hidden', t !== tab);
+  });
+}
+
+// ─── 提交入库 ────────────────────────────────────────────────
+async function doCommit() {
+  const btn   = document.getElementById('btn-commit');
+  const errEl = document.getElementById('commit-error');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> 提交中...';
+  errEl.classList.add('hidden');
+
+  // 收集冲突处理决策
+  const conflictResolutions = {};
+  document.querySelectorAll('[data-conflict-id]').forEach(card => {
+    const cid   = card.dataset.conflictId;
+    const radio = card.querySelector(`input[name="conflict-${cid}"]:checked`);
+    if (radio) conflictResolutions[cid] = radio.value;
+  });
+
+  // 收集已批准的 Schema 建议
+  const approvedSuggestions = [];
+  document.querySelectorAll('#schema-list input[type="checkbox"]:checked').forEach(cb => {
+    approvedSuggestions.push(cb.value);
+  });
+
+  try {
+    const res = await fetch(`/api/admin/ingest/${_jobId}/commit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_token}`,
+      },
+      body: JSON.stringify({
+        conflict_resolutions: conflictResolutions,
+        approved_suggestions: approvedSuggestions,
+      }),
+    });
+    if (res.status === 401) { doLogout(); return; }
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || `提交失败（HTTP ${res.status}）`);
+    }
+    const data = await res.json();
+
+    document.getElementById('committed-path').textContent = data.wiki_path || '';
+    const appended = Array.isArray(data.appended) ? data.appended : [];
+    document.getElementById('committed-appended').textContent =
+      appended.length ? `同时更新了 ${appended.length} 个关联条目` : '';
+
+    showState('committed');
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '确认入库';
+  }
+}
+
+// ─── 重置回 idle ──────────────────────────────────────────────
+function resetToIdle() {
+  if (_sseSource) { _sseSource.close(); _sseSource = null; }
+  _selectedFile = null;
+  _jobId        = null;
+  _parsedResult = null;
+
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-chip').classList.add('hidden');
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('idle-error').classList.add('hidden');
+  document.getElementById('commit-error').classList.add('hidden');
+  document.getElementById('sse-log').textContent = '';
+
+  // 重置 badge
+  document.getElementById('badge-conflicts').classList.add('hidden');
+  document.getElementById('badge-schema').classList.add('hidden');
+  document.getElementById('no-conflicts').classList.remove('hidden');
+  document.getElementById('conflicts-list').innerHTML = '';
+  document.getElementById('no-schema').classList.remove('hidden');
+  document.getElementById('schema-hint').classList.add('hidden');
+  document.getElementById('schema-list').innerHTML = '';
+
+  showState('idle');
+}
+
+// ─── 工具函数 ─────────────────────────────────────────────────
+function esc(str) {
+  return (str == null ? '' : String(str))
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>

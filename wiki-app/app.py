@@ -1,7 +1,10 @@
+import asyncio
+import functools
 import json
 import logging
 import os
 import secrets
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -11,7 +14,7 @@ import frontmatter as _frontmatter
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from openai import OpenAI
@@ -57,6 +60,11 @@ PROMPTS_DIR = Path(os.getenv("PROMPTS_DIR", "./prompts"))
 MAX_WIKI_CHARS = int(os.getenv("MAX_WIKI_CHARS", "80000"))
 MAX_CHAT_WIKI_CHARS = int(os.getenv("MAX_CHAT_WIKI_CHARS", "40000"))
 
+# ─── Ingest 配置 ─────────────────────────────────────────────
+SCHEMA_DIR = Path(os.getenv("SCHEMA_DIR", "../schema")).expanduser()
+INGEST_TMP_DIR = Path(os.getenv("INGEST_TMP_DIR", "./ingest-tmp")).expanduser()
+MAX_INGEST_FILE_MB = int(os.getenv("MAX_INGEST_FILE_MB", "50"))
+
 # ─── LLM 配置 ────────────────────────────────────────────────
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "moonshot")
@@ -83,6 +91,32 @@ def get_llm_client():
     )
 
 
+# ─── Ingest 引擎 ─────────────────────────────────────────────
+
+from ingest_engine import (
+    extract_text,
+    load_domain_config,
+    scan_existing_entities,
+    build_ingest_prompt,
+    stream_llm_ingest,
+    parse_llm_output,
+    commit_ingest,
+)
+
+# 进行中的 ingest 任务（进程内存储，单 worker 模式）
+_ingest_jobs: dict[str, dict] = {}
+
+# 用于安全消费同步生成器的哨兵对象（避免 StopIteration 在协程内变成 RuntimeError）
+_SENTINEL = object()
+
+
+def _sse(event: str, data) -> str:
+    """格式化单条 SSE 消息帧。"""
+    if not isinstance(data, str):
+        data = json.dumps(data, ensure_ascii=False)
+    return f"event: {event}\ndata: {data}\n\n"
+
+
 # ─── FastAPI 应用 ────────────────────────────────────────────
 
 app = FastAPI(title="展厅方案知识库")
@@ -98,6 +132,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     ESTIMATION_FILES_DIR.mkdir(parents=True, exist_ok=True)
+    INGEST_TMP_DIR.mkdir(parents=True, exist_ok=True)
     admin_hash = hash_password("Lecky888")
     init_db(admin_hash)
 
@@ -365,6 +400,12 @@ class EstimationFileMeta(BaseModel):
 @app.get("/")
 async def index():
     return HTMLResponse(Path("static/index.html").read_text(encoding="utf-8"))
+
+
+@app.get("/ingest", response_class=HTMLResponse)
+async def ingest_page():
+    """服务端 Ingest 工作台（管理员专用）。"""
+    return Path("static/ingest.html").read_text(encoding="utf-8")
 
 
 # ─── 路由：认证 ──────────────────────────────────────────────
@@ -965,3 +1006,208 @@ async def wiki_stats():
             stats[subdir.name] = count
             total += count
     return {"total": total, "breakdown": stats, "wiki_path": str(WIKI_PATH)}
+
+
+# ─── 服务端 Ingest 端点（管理员专用）────────────────────────────
+
+
+class IngestCommitRequest(BaseModel):
+    conflict_resolutions: dict = {}    # {conflict_id: "new" | "old" | "both"}
+    approved_suggestions: list = []   # 已批准的 Schema 建议字段名列表
+
+
+@app.post("/api/admin/ingest/upload")
+async def ingest_upload(
+    file: UploadFile = File(...),
+    _: dict = Depends(require_admin),
+):
+    """
+    上传原始文档，返回 job_id。
+    支持格式：PDF / PPTX / DOCX / TXT / MD，上限 MAX_INGEST_FILE_MB MB。
+    """
+    fname = file.filename or "upload"
+    suffix = Path(fname).suffix.lower()
+    if suffix not in (".pdf", ".pptx", ".docx", ".txt", ".md"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型 {suffix}，请上传 PDF / PPTX / DOCX / TXT / MD",
+        )
+    content = await file.read()
+    size_mb = len(content) / 1024 / 1024
+    if size_mb > MAX_INGEST_FILE_MB:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件过大（{size_mb:.1f} MB），上限为 {MAX_INGEST_FILE_MB} MB",
+        )
+    job_id = str(uuid.uuid4())
+    tmp_path = INGEST_TMP_DIR / f"{job_id}{suffix}"
+    tmp_path.write_bytes(content)
+    _ingest_jobs[job_id] = {
+        "status": "pending",
+        "filename": fname,
+        "file_path": tmp_path,
+        "result": None,
+        "raw_llm": "",
+        "error": None,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    return {"job_id": job_id, "filename": fname, "size_mb": round(size_mb, 2)}
+
+
+@app.get("/api/admin/ingest/{job_id}/run")
+async def ingest_run(job_id: str, token: str = ""):
+    """
+    SSE 流式端点：驱动 LLM 处理已上传文档，实时推送 token 流和最终解析结果。
+    因 EventSource 无法发送 Authorization 头，token 以 ?token= 查询参数传入。
+    """
+    # 手动校验 JWT（EventSource 不支持自定义请求头）
+    if not token:
+        raise HTTPException(status_code=401, detail="缺少 token 参数")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="需要管理员权限")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token 无效或已过期，请重新登录")
+
+    job = _ingest_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在或已过期")
+    if job["status"] == "running":
+        raise HTTPException(status_code=409, detail="任务正在运行中，请勿重复请求")
+    if job["status"] == "done":
+        # 幂等重放：任务已完成，直接返回结果
+        async def _replay():
+            yield _sse("result", job["result"])
+            yield _sse("done", {})
+        return StreamingResponse(
+            _replay(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    job["status"] = "running"
+
+    async def _stream():
+        loop = asyncio.get_running_loop()
+        raw_chunks: list[str] = []
+        try:
+            # 1. 提取文本（阻塞 I/O → executor）
+            text = await loop.run_in_executor(None, extract_text, job["file_path"])
+
+            # 2. 加载领域配置 & 扫描现有 wiki 实体
+            domain_config = await loop.run_in_executor(None, load_domain_config, SCHEMA_DIR)
+            entities = await loop.run_in_executor(None, scan_existing_entities, WIKI_PATH)
+
+            # 3. 读取 SCHEMA-CORE（可选）
+            schema_core_path = SCHEMA_DIR / "SCHEMA-CORE.md"
+            schema_core = (
+                schema_core_path.read_text(encoding="utf-8")
+                if schema_core_path.exists()
+                else ""
+            )
+
+            # 4. 构建 Prompt
+            system_prompt, user_prompt = build_ingest_prompt(
+                job["filename"], text, domain_config, entities, schema_core
+            )
+
+            # 5. 调用 LLM 流式生成（使用哨兵模式安全消费同步生成器）
+            llm_client, llm_model = get_llm_client()
+            gen = stream_llm_ingest(system_prompt, user_prompt, llm_client, llm_model)
+            while True:
+                chunk = await loop.run_in_executor(None, next, gen, _SENTINEL)
+                if chunk is _SENTINEL:
+                    break
+                raw_chunks.append(chunk)
+                yield _sse("token", {"text": chunk})
+
+            # 6. 解析 LLM 输出 JSON
+            raw = "".join(raw_chunks)
+            job["raw_llm"] = raw
+            result = await loop.run_in_executor(None, parse_llm_output, raw)
+            job["result"] = result
+            job["status"] = "done"
+
+            yield _sse("result", result)
+            yield _sse("done", {})
+
+        except Exception as exc:
+            job["status"] = "error"
+            job["error"] = str(exc)
+            logger.exception("Ingest run failed for job %s", job_id)
+            yield _sse("error", {"message": str(exc)})
+
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/admin/ingest/{job_id}/commit")
+async def ingest_commit(
+    job_id: str,
+    req: IngestCommitRequest,
+    _: dict = Depends(require_admin),
+):
+    """
+    将已审阅的 ingest 结果写入 wiki 文件系统。
+    支持传入冲突处理决策和 Schema 建议批准列表。
+    """
+    job = _ingest_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="任务不存在或已过期")
+    if job["status"] != "done":
+        raise HTTPException(
+            status_code=400,
+            detail=f"任务状态为 {job['status']}，必须先完成 LLM 处理后才能提交",
+        )
+    result = job["result"]
+
+    # 路径穿越防护
+    try:
+        (WIKI_PATH / result["wiki_path"]).resolve().relative_to(WIKI_PATH.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="wiki_path 路径非法，拒绝写入")
+
+    # 校验冲突处理值
+    for cid, val in req.conflict_resolutions.items():
+        if val not in ("new", "old", "both"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"conflict_resolutions[{cid}] 的值必须为 new / old / both",
+            )
+
+    loop = asyncio.get_running_loop()
+    try:
+        commit_result = await loop.run_in_executor(
+            None,
+            functools.partial(
+                commit_ingest,
+                result=result,
+                wiki_path_root=WIKI_PATH,
+                conflict_resolutions=req.conflict_resolutions,
+                approved_suggestions=req.approved_suggestions,
+                source_dest_dir=SOURCE_FILES_DIR / "proposals",
+                uploaded_file_path=job["file_path"],
+            ),
+        )
+    except Exception as exc:
+        logger.exception("Ingest commit failed for job %s", job_id)
+        raise HTTPException(status_code=500, detail=f"写入失败：{exc}")
+
+    # 清理临时文件（尽力而为）
+    try:
+        job["file_path"].unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    job["status"] = "committed"
+    return {
+        "status": "ok",
+        "written": commit_result.get("written", []),
+        "appended": commit_result.get("appended", []),
+        "wiki_path": result["wiki_path"],
+        "summary": result.get("summary", ""),
+    }
