@@ -101,6 +101,9 @@ from ingest_engine import (
     stream_llm_ingest,
     parse_llm_output,
     commit_ingest,
+    load_experience_config,
+    build_experience_prompt,
+    commit_experience_ingest,
 )
 
 # 进行中的 ingest 任务（进程内存储，单 worker 模式）
@@ -1019,12 +1022,16 @@ class IngestCommitRequest(BaseModel):
 @app.post("/api/admin/ingest/upload")
 async def ingest_upload(
     file: UploadFile = File(...),
+    ingest_type: str = Form("standard"),
     _: dict = Depends(require_admin),
 ):
     """
     上传原始文档，返回 job_id。
     支持格式：PDF / PPTX / DOCX / TXT / MD，上限 MAX_INGEST_FILE_MB MB。
+    ingest_type: standard（方案/竞品/政策）| experience（接待报告/月报/经验沉淀）
     """
+    if ingest_type not in ("standard", "experience"):
+        raise HTTPException(status_code=400, detail="ingest_type 必须为 standard 或 experience")
     fname = file.filename or "upload"
     suffix = Path(fname).suffix.lower()
     if suffix not in (".pdf", ".pptx", ".docx", ".txt", ".md"):
@@ -1046,12 +1053,13 @@ async def ingest_upload(
         "status": "pending",
         "filename": fname,
         "file_path": tmp_path,
+        "ingest_type": ingest_type,
         "result": None,
         "raw_llm": "",
         "error": None,
         "created_at": datetime.utcnow().isoformat(),
     }
-    return {"job_id": job_id, "filename": fname, "size_mb": round(size_mb, 2)}
+    return {"job_id": job_id, "filename": fname, "size_mb": round(size_mb, 2), "ingest_type": ingest_type}
 
 
 @app.get("/api/admin/ingest/{job_id}/run")
@@ -1107,10 +1115,18 @@ async def ingest_run(job_id: str, token: str = ""):
                 else ""
             )
 
-            # 4. 构建 Prompt
-            system_prompt, user_prompt = build_ingest_prompt(
-                job["filename"], text, domain_config, entities, schema_core
-            )
+            # 4. 构建 Prompt（按 ingest_type 分支）
+            from datetime import date as _date
+            today_str = _date.today().isoformat()
+            if job.get("ingest_type") == "experience":
+                experience_config = await loop.run_in_executor(None, load_experience_config, SCHEMA_DIR)
+                system_prompt, user_prompt = build_experience_prompt(
+                    job["filename"], text, domain_config, entities, experience_config, today_str
+                )
+            else:
+                system_prompt, user_prompt = build_ingest_prompt(
+                    job["filename"], text, domain_config, entities, schema_core
+                )
 
             # 5. 调用 LLM 流式生成（使用哨兵模式安全消费同步生成器）
             llm_client, llm_model = get_llm_client()
@@ -1181,18 +1197,31 @@ async def ingest_commit(
 
     loop = asyncio.get_running_loop()
     try:
-        commit_result = await loop.run_in_executor(
-            None,
-            functools.partial(
-                commit_ingest,
-                result=result,
-                wiki_path_root=WIKI_PATH,
-                conflict_resolutions=req.conflict_resolutions,
-                approved_suggestions=req.approved_suggestions,
-                source_dest_dir=SOURCE_FILES_DIR / "proposals",
-                uploaded_file_path=job["file_path"],
-            ),
-        )
+        if job.get("ingest_type") == "experience":
+            commit_result = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    commit_experience_ingest,
+                    result=result,
+                    wiki_path_root=WIKI_PATH,
+                    approved_suggestions=req.approved_suggestions,
+                    source_dest_dir=SOURCE_FILES_DIR / "reports",
+                    uploaded_file_path=job["file_path"],
+                ),
+            )
+        else:
+            commit_result = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    commit_ingest,
+                    result=result,
+                    wiki_path_root=WIKI_PATH,
+                    conflict_resolutions=req.conflict_resolutions,
+                    approved_suggestions=req.approved_suggestions,
+                    source_dest_dir=SOURCE_FILES_DIR / "proposals",
+                    uploaded_file_path=job["file_path"],
+                ),
+            )
     except Exception as exc:
         logger.exception("Ingest commit failed for job %s", job_id)
         raise HTTPException(status_code=500, detail=f"写入失败：{exc}")
@@ -1208,6 +1237,7 @@ async def ingest_commit(
         "status": "ok",
         "written": commit_result.get("written", []),
         "appended": commit_result.get("appended", []),
-        "wiki_path": result["wiki_path"],
+        "enriched": commit_result.get("enriched", []),
+        "wiki_path": commit_result.get("entity_id", result.get("wiki_path", "")),
         "summary": result.get("summary", ""),
     }

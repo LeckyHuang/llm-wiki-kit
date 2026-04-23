@@ -300,7 +300,8 @@ wiki/archive/
 | 操作 | 提示词文件 | 核心用途 |
 |------|-----------|---------|
 | Ingest | `prompts/ingest.md` | 摄入新材料，含版本管控 |
-| Query | `prompts/query.md` | 为新方案生产提供素材 |
+| Ingest Experience | `prompts/ingest-experience.md` | 摄入事件报告，触发跨实体增益（v2.1） |
+| Query | `prompts/query.md` | 为新方案生产提供素材，含对话式反馈捕获 |
 | Lint | `prompts/lint.md` | 生命周期检测与归档建议 |
 | Validate | `prompts/validate.md` | Obsidian Canvas 可视化验证 |
 
@@ -330,5 +331,143 @@ wiki/archive/
 | ARCHIVE | 知识归档 |
 | QUERY | 执行查询（可选记录） |
 | LINT | 健康检查 |
-| FEEDBACK | 交互反馈反哺（v2.0 引入）|
+| FEEDBACK | 对话式反馈反哺（v2.1 Path B）|
 | SYNC-CHECK | 双路径同步评估记录 |
+| EXPERIENCE-INGEST | 摄入经验事件报告（v2.1）|
+| EXPERIENCE-ENRICH | 跨实体增益执行记录（v2.1）|
+| SCHEMA-UPDATE | Schema 或领域配置变更记录 |
+
+---
+
+## 十、experience 实体规范（v2.1）
+
+### 10.1 实体定位
+
+`experience` 是**动态事件型**实体，与现有静态描述型实体（`client`/`module` 等）的核心区别：
+
+| 维度 | 静态描述型（如 client/module） | 动态事件型（experience） |
+|------|-------------------------------|------------------------|
+| 记录内容 | 某事物**是什么** | 某件事**发生了什么** |
+| 时间属性 | 无强时间绑定 | 必须有 `event_date` |
+| 来源 | 方案文档、资料文件 | 活动报告、运营记录 |
+| 增值机制 | 版本管控覆盖更新 | 跨实体增益反哺关联实体 |
+
+存放目录：`wiki/experiences/{subtype}/`，目录说明见 `wiki/experiences/README.md`。
+
+### 10.2 experience Frontmatter 规范
+
+```yaml
+---
+title: <事件标题，建议格式："YYYY-MM-DD [客户/主题] [subtype中文名]">
+type: experience
+entity_id: exp-{event_year}-{subtype_abbr}-{seq:02d}
+subtype: <来自 domain-config.xlsx Experience Types Sheet 的 subtype_abbr>
+event_date: YYYY-MM-DD
+status: active
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+
+# 事件维度（由 domain-config.xlsx Experience Types Sheet 的 coreDimensions 定义）
+dimensions:
+  {key}: {value}    # 各行业自行在 domain-config 中定义维度字段名
+
+# 本次事件涉及的 wiki 实体
+subject:
+  - clients/某客户实体.md
+  - modules/某功能模块.md
+
+# 本次活动中实际使用的资产（字段名可在 domain-config 中自定义）
+exhibited_assets:
+  - type: video
+    label: 资产名称
+    path: sources/media/文件名.mp4
+
+sources:
+  - sources/reports/YYYY-MM-DD-报告文件名.pdf
+---
+```
+
+### 10.3 entity_id 规则
+
+```
+格式：exp-{event_year}-{subtype_abbr}-{seq:02d}
+
+示例：
+  exp-2026-session-01    # 2026年第1份接待活动报告
+  exp-2026-monthly-03    # 2026年第3份运营月报
+  exp-2026-lesson-01     # 2026年第1份经验沉淀
+```
+
+- `subtype_abbr` 取自 domain-config.xlsx Experience Types Sheet 的 `subtype_abbr` 列
+- 序号在每个 subtype 内独立计数，从 01 开始，按 `event_date` 升序排列
+- 一旦分配不得修改
+
+### 10.4 跨实体增益规则
+
+`experience` 实体摄入后触发的增益逻辑（详见 `prompts/ingest-experience.md` 步骤 5）：
+
+| 增益类型 | 来源分区 | 写入目标 | 是否直接修改 |
+|---------|---------|---------|------------|
+| 增益 A | `[qa-record]` | 关联模块 `[qa]` 分区（追加） | 是，标注来源 |
+| 增益 B | `[narration-record]` | 关联模块 `[narration]` 分区（追加） | 是，标注来源 |
+| 增益 C | `[visitor-insights]` | `wiki/schema-suggestions.md` | 否，仅建议 |
+| 增益 D | 客户关注点数据 | 关联客户 `preference_notes`（追加） | 是，标注来源 |
+
+增益 A/B/D 均为追加操作，不覆盖已有内容；增益 C 写入 schema-suggestions.md 等待人工确认。
+增益行为受 `wiki/config.yml` 中 `experience.auto_enrich` 控制。
+
+### 10.5 experience 生命周期规则
+
+| 状态 | 触发条件 |
+|------|---------|
+| `active` | 默认状态 |
+| `outdated` | Lint 检测到关联核心 subject 实体已 archived，或 event_date 超过配置阈值 |
+| `archived` | 系统或内容环境发生重大变更，历史记录失去参考价值 |
+
+experience 实体**不强制归档**，历史价值高于时效性——旧的活动记录仍可作为历史样本使用。
+
+### 10.6 best-expression 字段规范
+
+`best-expression` 是通用可选字段，用于记录对特定受众的**最优表达方式**，由 Path B 对话捕获写入：
+
+```yaml
+best-expression:
+  - audience: 政府客户
+    prefer: "数字政务"
+    avoid: "智慧城市"
+    source: feedback-2026-04-20    # 来源记录（对话日期或 experience entity_id）
+```
+
+---
+
+## 十一、wiki/config.yml 运行时配置规范（v2.1）
+
+`wiki/config.yml` 是 wiki 运行时的行为配置文件，控制自动化程度。**所有开关默认关闭**，不影响现有手动工作流。
+
+### 11.1 文件位置与作用域
+
+- 路径：`wiki/config.yml`（进 git，可版本追踪）
+- 作用域：所有 prompts 在执行前应读取此文件，以决定自动化行为
+
+### 11.2 事件驱动摄入开关
+
+```yaml
+event_driven_ingest:
+  enabled: false          # 主开关（默认关闭）
+  watch_paths: [...]      # enabled=true 时扫描的目录
+  trigger_mode: auto-confirm | auto-silent
+  exclude_patterns: [...]
+```
+
+- `enabled: false`：所有 ingest-experience 均手动指定文件，不扫描目录
+- `enabled: true`：执行 ingest-experience.md 时，自动扫描 watch_paths 中未摄入的文件
+- `auto-confirm`（推荐）：列出待处理文件清单，用户确认后执行
+- `auto-silent`：静默自动执行，完成后通知（谨慎使用）
+
+### 11.3 增益行为配置
+
+```yaml
+experience:
+  auto_enrich: true           # ingest-experience 后是否触发跨实体增益
+  enrichment_confirm: true    # 增益前是否展示变更列表等待确认
+```

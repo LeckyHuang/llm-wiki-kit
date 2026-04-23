@@ -1,0 +1,43 @@
+# wiki/config.yml — Wiki 运行时配置
+#
+# 本文件控制 wiki 的自动化行为。所有开关默认关闭，不影响现有手动工作流。
+# 修改后在下次执行对应 prompt 时生效。
+
+# ─────────────────────────────────────────
+# 事件驱动摄入开关
+# 关闭（false）：所有摄入完全手动，用户在执行 ingest-experience.md 时指定文件
+# 打开（true）：执行 ingest-experience.md 时自动扫描 watch_paths，列出未摄入文件供确认
+# ─────────────────────────────────────────
+event_driven_ingest:
+  enabled: false                  # 主开关，默认关闭
+
+  # 以下配置仅在 enabled: true 时生效
+  watch_paths:
+    - sources/reports/            # 扫描新事件报告文件
+  trigger_mode: auto-confirm      # auto-confirm（列出待处理文件，用户确认后执行）
+                                  # auto-silent（静默自动执行，完成后通知，谨慎使用）
+  exclude_patterns:
+    - "*.tmp"
+    - "~$*"
+
+# ─────────────────────────────────────────
+# 跨实体增益控制
+# auto_enrich: ingest-experience 完成后是否触发跨实体增益（增益 A/B/C/D）
+# enrichment_confirm: true = 增益执行前展示变更列表等待人工确认；false = 静默执行
+# ─────────────────────────────────────────
+experience:
+  auto_enrich: true
+  enrichment_confirm: true
+
+# ─────────────────────────────────────────
+# Lint 计划任务（v2.5 预留）
+# ─────────────────────────────────────────
+lint:
+  schedule: monthly
+  auto_archive: false
+
+# ─────────────────────────────────────────
+# 知识图谱路由（v2.5 预留）
+# ─────────────────────────────────────────
+graph:
+  auto_update: false

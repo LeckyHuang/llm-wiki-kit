@@ -206,7 +206,7 @@ cd my-wiki
 | v1.0 | Foundation | 通用化 + 版本管控 + 生命周期 | ✅ |
 | v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区 | ✅ |
 | v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | ✅ |
-| v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | 🔲 |
+| v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | ✅ |
 | v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | 🔲 |
 | v3.0 | Expansion | 外脑机制 + 自动触发 + 服务端流水线 | 🔲 |
 | v4.0 | Production | 方案生产闭环（md → HTML → PPT） | ⏸ 暂缓 |

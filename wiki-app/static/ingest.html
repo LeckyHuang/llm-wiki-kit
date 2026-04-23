@@ -88,6 +88,17 @@
       <input id="file-input" type="file" accept=".pdf,.pptx,.docx,.txt,.md"
              class="hidden" onchange="handleFileSelect(event)" />
 
+      <!-- 摄入类型选择 -->
+      <div class="mt-4">
+        <label class="block text-xs font-medium text-gray-600 mb-1.5">摄入类型</label>
+        <select id="ingest-type-select"
+                class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+          <option value="standard">标准文档（方案 / 竞品 / 政策）</option>
+          <option value="experience">经验报告（接待活动 / 运营月报 / 经验沉淀）</option>
+        </select>
+        <p id="ingest-type-hint" class="mt-1 text-xs text-gray-400">摄入后将写入 wiki 对应目录</p>
+      </div>
+
       <!-- 已选文件 chip -->
       <div id="file-chip"
            class="hidden mt-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
@@ -267,6 +278,20 @@ function showState(name) {
   });
 }
 
+// ─── 摄入类型 hint 联动 ──────────────────────────────────────
+const _typeHints = {
+  standard:   '摄入后写入 wiki/ 对应实体目录（方案→clients/，竞品→competitors/ 等）',
+  experience: '摄入后写入 wiki/experiences/，并自动触发关联模块/客户的跨实体增益',
+};
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('ingest-type-select');
+  const hint = document.getElementById('ingest-type-hint');
+  if (sel && hint) {
+    sel.addEventListener('change', () => { hint.textContent = _typeHints[sel.value] || ''; });
+    hint.textContent = _typeHints[sel.value] || '';
+  }
+});
+
 // ─── 启动时鉴权 ───────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   const token = localStorage.getItem('wiki_token');
@@ -355,8 +380,10 @@ async function startIngest() {
   showState('uploading');
 
   // 1. 上传文件
+  const ingestType = document.getElementById('ingest-type-select').value;
   const formData = new FormData();
   formData.append('file', _selectedFile);
+  formData.append('ingest_type', ingestType);
   let jobId;
   try {
     const res = await fetch('/api/admin/ingest/upload', {
