@@ -139,6 +139,13 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
+        <!-- 知识库摄入（仅管理员可见） -->
+        <button id="btn-ingest" onclick="window.location.href='/ingest'" class="hidden text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:border-blue-200 transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          知识库摄入
+        </button>
         <!-- 系统设置（仅管理员可见） -->
         <button id="btn-admin" onclick="openAdmin()" class="hidden text-xs text-gray-500 hover:text-blue-600 flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:border-blue-200 transition-all">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -715,8 +722,9 @@ function onLoggedIn() {
   document.getElementById('header-username').textContent = _currentUser.name;
   document.getElementById('q-su-name').value = _currentUser.su_name || '—';
 
-  // 管理员显示系统设置按钮
+  // 管理员显示系统设置和知识库摄入按钮
   if (_currentUser.role === 'admin') {
+    document.getElementById('btn-ingest').classList.remove('hidden');
     document.getElementById('btn-admin').classList.remove('hidden');
   }
 
