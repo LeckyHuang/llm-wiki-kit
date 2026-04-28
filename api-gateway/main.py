@@ -2,8 +2,8 @@
 Wiki API Gateway
 将 llm-wiki-kit 的核心知识库能力封装为对外 REST API。
 
-启动：uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-文档：http://localhost:8001/docs
+启动：uvicorn main:app --host 0.0.0.0 --port 8745 --reload
+文档：http://localhost:8745/docs
 """
 import logging
 import time
@@ -13,11 +13,13 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config import WIKI_PATH
+from config import CORS_ORIGINS, WIKI_PATH
 from db import get_conn, init_db
 from llm_client import health_check as llm_health
 from routers import gateway as gateway_router
+from routers import ingest as ingest_router
 from routers import query as query_router
+from routers import retrieve as retrieve_router
 from routers import wiki as wiki_router
 from wiki_reader import wiki_stats
 
@@ -91,7 +93,8 @@ X-Admin-Key: <管理员主密钥>
 # ─── CORS ─────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials="*" not in CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -143,7 +146,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ─── 路由注册 ─────────────────────────────────────────────────
 app.include_router(query_router.router)
+app.include_router(retrieve_router.router)
 app.include_router(wiki_router.router)
+app.include_router(ingest_router.router)
 app.include_router(gateway_router.router)
 
 
