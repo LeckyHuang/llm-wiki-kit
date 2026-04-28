@@ -22,12 +22,12 @@ PROVIDERS: dict[str, dict] = {
     "moonshot": {
         "api_key_env": "MOONSHOT_API_KEY",
         "base_url": "https://api.moonshot.cn/v1",
-        "model": "moonshot-v1-128k",
+        "model": "kimi-k2.6",
     },
     "qwen": {
         "api_key_env": "QWEN_API_KEY",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "model": "qwen-long",
+        "model": "qwen3.6-plus",
     },
 }
 
@@ -55,3 +55,12 @@ DEFAULT_RATE_LIMIT = int(os.getenv("DEFAULT_RATE_LIMIT", "60"))   # 次/分钟
 # 设置后可绕过数据库校验，拥有全部权限、不限速。
 # 生产环境：不设置此变量（或置空）即自动关闭。
 DEV_API_KEY = os.getenv("DEV_API_KEY", "").strip()
+
+# ─── CORS 允许来源 ────────────────────────────────────────────
+# 逗号分隔，如：https://ai.company.com,http://192.168.1.100:3000
+# 留空则允许所有来源（*），生产环境建议显式配置
+_cors_raw = os.getenv("CORS_ORIGINS", "")
+CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()] or ["*"]
+
+# ─── Schema 目录（domain-config.xlsx 所在）──────────────────
+SCHEMA_DIR = Path(os.getenv("SCHEMA_DIR", "../schema")).expanduser().resolve()
