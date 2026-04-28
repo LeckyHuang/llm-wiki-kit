@@ -92,8 +92,8 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 cd api-gateway
 cp .env.example .env      # 填写 LLM API Key 和 GATEWAY_ADMIN_KEY
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8001
-# Swagger 文档：http://localhost:8001/docs
+uvicorn main:app --host 0.0.0.0 --port 8745
+# Swagger 文档：http://localhost:8745/docs
 ```
 
 外部系统注册与接入流程详见 [`api-gateway/README.md`](api-gateway/README.md)。
@@ -139,13 +139,19 @@ llm-wiki-kit/
 │   └── .env.example          # 环境变量说明
 │
 ├── api-gateway/              # 对外 API Gateway（外部系统接入）
-│   ├── main.py               # FastAPI 网关入口（限流 + 请求日志）
+│   ├── main.py               # FastAPI 网关入口（限流 + 请求日志 + CORS）
 │   ├── auth.py               # API Key 认证 + 滑动窗口限流
 │   ├── wiki_reader.py        # 知识库读取（共享 wiki/ 目录）
 │   ├── llm_client.py         # LLM 提供商封装
-│   ├── routers/              # 路由模块（query / wiki / gateway 管理）
+│   ├── routers/              # 路由：query / chat / retrieve / ingest / wiki / gateway
 │   ├── models/               # Pydantic 请求 / 响应模型
+│   ├── start.bat             # Windows 一键启动脚本
 │   └── .env.example          # 环境变量说明
+
+├── deploy/                   # 部署参考模板（nginx 配置 / Windows 服务 / 部署指南）
+│   ├── nginx.conf
+│   ├── install-services.ps1
+│   └── DEPLOY-GUIDE.md
 │
 ├── tools/                    # 工具脚本
 │
@@ -162,7 +168,7 @@ llm-wiki-kit/
 
 - **领域可配置**：替换 `domain-config.xlsx` 即可切换行业，无需改代码
 - **应用解耦**：wiki 不感知任何下游应用，新增应用场景无需修改知识层；各应用自定义消费逻辑
-- **对外 API 接入**：api-gateway 提供标准 REST API（API Key 认证 + 限速），任意外部系统可接入同一知识库
+- **对外 API 接入**：api-gateway 提供标准 REST API（API Key 认证 + 限速），支持结构化查询、自由问答、纯检索（含 LLM 意图解析）、文件摄入等多种消费模式，任意外部系统可接入同一知识库
 - **资产引用**：Frontmatter `assets[]` 字段携带文件路径或在线 URL，策展 / 问答等应用可直接提取
 - **场景标签**：`scenarios[]` 字段标注实体适用场景，下游应用快速精准过滤
 - **正文分区**：`[narration]` / `[qa]` / `[training]` 等可选分区，不同应用按需提取对应内容
@@ -193,7 +199,7 @@ cd my-wiki
 | 知识存储 | Markdown + YAML Frontmatter |
 | Web 后端 | FastAPI · Python · SQLite |
 | Web 前端 | 原生 HTML/CSS/JS · Tailwind CSS |
-| LLM 接入 | Moonshot（moonshot-v1-128k）/ Qwen（qwen-long） |
+| LLM 接入 | Moonshot（kimi-k2.6）/ Qwen（qwen3.6-plus），可通过 .env 切换 |
 | 可视化 | Obsidian + Dataview 插件 |
 
 ---
