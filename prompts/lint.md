@@ -46,6 +46,27 @@
 - 列出建议字段名、出现次数、置信度
 - 提示：积压超过 10 条时建议安排一次 domain-config.xlsx 审阅
 
+检查项 9 — 媒体资产索引聚合（v2.5）：
+- 扫描所有 wiki 实体（含 experiences/ 子目录）的 frontmatter
+- 提取 assets[] 字段（来自普通实体）和 exhibited_assets[] 字段（来自 experience 实体）
+- 重新生成 wiki/assets/index.md，包含三个区段：
+  1. 按类型检索：video / image / html / ppt / pdf / excel / link / diagram 分组，列出每个资产的标签、所属实体、文件路径或URL、描述
+  2. 按实体检索：列出每个实体引用的全部资产
+  3. 跨事件资产使用记录：统计每个资产在 exhibited_assets 中被引用的次数和最近事件 entity_id
+- 更新 index.md 顶部的"最后更新"时间为今天日期
+
+检查项 10 — 图谱 AMBIGUOUS 关系处理（v2.5，仅在 graphify-out/GRAPH_REPORT.md 存在时执行）：
+- 读取 graphify-out/GRAPH_REPORT.md，提取所有标记为 AMBIGUOUS 的关系条目
+- 与 wiki/pending-clarifications.md 中现有条目按实体对去重
+- 将未记录的 AMBIGUOUS 关系追加写入 pending-clarifications.md，格式：
+  ### [CONFLICT-GXXX] 图谱关系待澄清（来自 Graphify）
+  - 实体A：{节点A wiki 路径}
+  - 实体B：{节点B wiki 路径}
+  - 疑似关系：{关系描述}
+  - 置信度：{score}（AMBIGUOUS）
+  - 建议裁决：[ ] 合并为同一实体  [ ] 保留，明确区分  [ ] 无关联
+- 输出本次新增的 AMBIGUOUS 条目数量；若 GRAPH_REPORT.md 不存在，跳过并注明"图谱未初始化"
+
 输出格式：
 # Lint Report — [日期]
 
@@ -77,6 +98,16 @@
 ## 9. Schema 建议积压 (N条)
 | 建议字段名 | 出现次数 | 置信度 |
 |-----------|---------|--------|
+
+## 10. 媒体资产索引更新
+已扫描实体数：N / 资产总条数：N / 各类型分布：video:N image:N html:N ...
+wiki/assets/index.md 已更新（最后更新：YYYY-MM-DD）
+
+## 11. 图谱 AMBIGUOUS 关系（本次新增 N 条）
+| 冲突编号 | 实体A | 实体B | 疑似关系 | 置信度 |
+|---------|------|------|---------|--------|
+| CONFLICT-G001 | ... | ... | ... | 0.38 |
+（若 GRAPH_REPORT.md 不存在，注明：图谱未初始化，跳过检查项 10）
 
 ---
 输出报告后，逐项询问是否立即处理。

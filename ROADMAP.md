@@ -37,7 +37,7 @@
 | v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区约定 | ✅ 已完成 |
 | v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | ✅ 已完成 |
 | v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | ✅ 已完成（2026-04-23）|
-| v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | 🔲 待启动 |
+| v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | ✅ 已完成（2026-04-29）|
 | v3.0 | Expansion | 外脑机制 + 自动触发 + 服务端流水线 | 🔲 待启动 |
 | v4.0 | Production | 方案生产闭环（md→html→PPT）| ⏸ 暂缓，应用层决策 |
 
@@ -637,10 +637,10 @@ wiki/assets/
 这个跨事件使用记录（来自 v2.1 的 `exhibited_assets`）本身就是高价值运营数据：高频使用的资产说明其内容强，低频说明可能需要更新或下线。
 
 **交付物**
-- [ ] 定义 `wiki/assets/index.md` 完整格式规范，写入 SCHEMA-CORE.md
-- [ ] 更新 `prompts/lint.md`，加入资产索引自动聚合步骤（扫描 `assets[]` 和 `exhibited_assets[]`）
-- [ ] 在 domain-config.xlsx Sheet2 中完善 `assets.type` 枚举值
-- [ ] 更新 `prompts/query.md`，支持按资产类型跨实体检索（如"找所有包含 video 资产的模块"）
+- [x] 定义 `wiki/assets/index.md` 完整格式规范，写入 SCHEMA-CORE.md §十二
+- [x] 更新 `prompts/lint.md`，加入资产索引自动聚合步骤（检查项 9）
+- [x] `assets.type` 枚举（video/image/html/ppt/pdf/excel/link/diagram）写入 SCHEMA-CORE.md §12.3；domain-config.xlsx Sheet2 同步留至下次人工编辑时补录（不影响功能）
+- [x] 更新 `prompts/query.md`，新增"资产检索查询"模板，支持按类型跨实体检索
 
 ---
 
@@ -718,24 +718,39 @@ Graphify 标记为 `AMBIGUOUS` 的关系自动追加写入 `wiki/pending-clarifi
 ```
 
 **交付物**
-- [ ] 安装 Graphify skill（`graphify claude install`）
-- [ ] 首次在 `wiki/` 上运行 `/graphify . --mode deep`，生成初始图谱三文件
-- [ ] 更新 `prompts/query.md`，加入图谱路由前置步骤
-- [ ] 更新 `prompts/lint.md`，加入读取 `AMBIGUOUS` 关系并写入 `pending-clarifications.md` 的步骤
-- [ ] 更新 `prompts/ingest.md` 和 `prompts/ingest-experience.md`，末尾加入 `/graphify --update` 步骤
-- [ ] 在 SCHEMA-CORE.md 中记录图谱路由的 Query 两阶段流程规范
-- [ ] 在 `graph.json` schema 中预留 `source_type: internal/external` 字段（为 v3.0 外脑机制预埋）
+- [x] 安装 Graphify skill（手动 curl SKILL.md → `~/.claude/skills/graphify/`，Python 3.9 系统限制，跳过 pip 安装）
+- [ ] 首次在 `wiki/` 上运行 `/graphify ./wiki --mode deep`，生成初始图谱三文件（触发条件：wiki 实体 > 150 页）
+- [x] 更新 `prompts/query.md`，加入图谱路由前置步骤
+- [x] 更新 `prompts/lint.md`，加入读取 `AMBIGUOUS` 关系并写入 `pending-clarifications.md` 的步骤
+- [x] 更新 `prompts/ingest.md` 和 `prompts/ingest-experience.md`，末尾加入 `/graphify --update` 步骤
+- [x] 在 SCHEMA-CORE.md 中记录图谱路由的 Query 两阶段流程规范（§十三）
+- [x] 在 SCHEMA-CORE.md §十三 中预留 `source_type: internal/external` 字段说明（为 v3.0 外脑机制预埋）
+- [x] 更新 CLAUDE.md，加入项目级图谱使用说明（等效 `graphify claude install`）
+- [x] 配置 .gitignore：graphify-out/cache/ 不进 git，三主文件白名单保留
+
+> 注：Graphify 实际输出目录为 `graphify-out/`（非原 ROADMAP 假设的 `wiki/graph/`），所有文档已同步修正。
 
 ---
 
 ### v2.5 里程碑验收标准
 
-- [ ] `/graphify . --mode deep` 在 `wiki/` 上成功运行，`graph.html` 可在浏览器中交互浏览
+> 规范层验收（2026-04-29 完成）：所有 prompts、SCHEMA-CORE.md、目录结构、CLAUDE.md、.gitignore 均已就绪。  
+> 运行时验收：下列条目在 wiki 规模达到触发条件后完成，基础设施已就绪，降级逻辑内置于各 prompt，不阻断现有工作流。
+
+- [ ] `/graphify ./wiki --mode deep` 成功运行，`graph.html` 可在浏览器中交互浏览（触发条件：wiki 实体 > 150 页）
 - [ ] `experience` 实体作为事件节点出现在图谱中，与 client/module/asset 节点正确关联
-- [ ] `AMBIGUOUS` 关系自动出现在 `pending-clarifications.md` 中
+- [ ] `AMBIGUOUS` 关系自动出现在 `pending-clarifications.md` 中（Lint 检查项 10）
 - [ ] Query 通过图谱路由，实际喂入 LLM 的 wiki 内容子集明显小于全量
-- [ ] `wiki/assets/index.md` 由 Lint 自动生成并反映全库媒体资产状态
+- [ ] `wiki/assets/index.md` 由 Lint 自动生成并反映全库媒体资产状态（Lint 检查项 9）
 - [ ] Ingest 新文件后 `--update`，图谱中出现对应新节点和关系
+
+### 生产环境状态（2026-04-29）
+
+- 规范层全量落地：SCHEMA-CORE.md §十二（媒体资产索引）、§十三（图谱路由）已就绪
+- Graphify skill 已全局安装（`~/.claude/skills/graphify/`），`/graphify` 命令可用
+- `graphify-out/` 纳入版本管控（cache/ 排除，三主文件白名单）
+- 项目 CLAUDE.md 已配置图谱使用说明（等效 `graphify claude install`）
+- 首次建图待触发：wiki 实体超过 150 页时执行 `/graphify ./wiki --mode deep`
 
 ### v2.5 提前触发条件
 

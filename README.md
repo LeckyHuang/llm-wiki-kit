@@ -72,10 +72,14 @@ wiki/（知识层）
 将原始材料放入 `sources/` 对应子目录，在 Claude Code 或 Cursor 中执行：
 
 ```
+# 文档类材料（方案/竞品/政策等）
 # 复制 prompts/ingest.md 的内容给 LLM，替换文件路径后运行
+
+# 运营事件报告（接待活动/月报/经验沉淀等）
+# 复制 prompts/ingest-experience.md 的内容给 LLM，替换文件路径后运行
 ```
 
-LLM 将自动读取 `domain-config.xlsx`，提取关键信息并写入 `wiki/` 目录。
+LLM 将自动读取 `domain-config.xlsx`，提取关键信息并写入 `wiki/` 目录。每次 Ingest 完成后自动触发 Graphify 图谱增量更新（wiki 规模达到触发阈值后生效）。
 
 ### 第三步：部署 Web 应用（内部用户）
 
@@ -118,16 +122,25 @@ llm-wiki-kit/
 │   └── domain-config.xlsx    # 领域配置（企业自定义）
 │
 ├── prompts/
-│   ├── ingest.md             # 知识摄入（含版本管控）
-│   ├── query.md              # 知识查询（AI 直接操作路径）
-│   ├── lint.md               # 健康检查（生命周期检测）
+│   ├── ingest.md             # 知识摄入（含版本管控 + 图谱更新）
+│   ├── ingest-experience.md  # 经验事件报告摄入（v2.1）
+│   ├── query.md              # 知识查询（图谱路由 + 资产检索，v2.5）
+│   ├── lint.md               # 健康检查（生命周期 + 资产索引 + 图谱，v2.5）
 │   └── validate.md           # Obsidian Canvas 可视化验证
 │
 ├── wiki/                     # 知识库（Ingest 后自动生成，不进 git）
+│   ├── experiences/          # 经验事件知识（v2.1）
+│   ├── assets/               # 媒体资产聚合索引（v2.5，Lint 自动维护）
 │   └── archive/              # 已归档知识
+│
+├── graphify-out/             # 知识图谱（v2.5，Graphify 生成，进 git）
+│   ├── graph.json            # 持久化图谱数据
+│   ├── graph.html            # 可交互可视化
+│   └── GRAPH_REPORT.md       # 关系摘要（含 AMBIGUOUS 关系）
 │
 ├── sources/                  # 原始材料（不进 git）
 │   ├── proposals/            # 文档类（PDF / PPT / Word）
+│   ├── reports/              # 运营事件报告（v2.1）
 │   ├── media/                # 多媒体资产（视频 / 图片 / HTML）
 │   └── annotations/          # 人工补充材料（讲解词 / 问答对，可选）
 │
@@ -170,11 +183,14 @@ llm-wiki-kit/
 - **应用解耦**：wiki 不感知任何下游应用，新增应用场景无需修改知识层；各应用自定义消费逻辑
 - **对外 API 接入**：api-gateway 提供标准 REST API（API Key 认证 + 限速），支持结构化查询、自由问答、纯检索（含 LLM 意图解析）、文件摄入等多种消费模式，任意外部系统可接入同一知识库
 - **资产引用**：Frontmatter `assets[]` 字段携带文件路径或在线 URL，策展 / 问答等应用可直接提取
+- **媒体资产索引**（v2.5）：Lint 自动聚合全库 `assets[]` 和 `exhibited_assets[]`，生成 `wiki/assets/index.md`，支持按类型、按实体、按使用频次三维检索；高频资产（多次出现在 experience 接待记录中）自动浮现
+- **图谱路由**（v2.5）：集成 [Graphify](https://github.com/safishamsi/graphify)，将 wiki 实体和关系构建为知识图谱；Query 时先经图谱路由定位相关子集（10–30 页），再喂给 LLM，token 消耗最高可降低 71.5 倍；wiki 规模超过 150 页时自动激活
 - **场景标签**：`scenarios[]` 字段标注实体适用场景，下游应用快速精准过滤
 - **正文分区**：`[narration]` / `[qa]` / `[training]` 等可选分区，不同应用按需提取对应内容
 - **版本管控**：同一项目多次 Ingest 自动执行版本比对，旧值保存至 `history:` 块
 - **知识生命周期**：三态模型（active / outdated / archived），Lint 自动检测过期政策和证书
 - **Schema 自进化**：Ingest 自动发现 Schema 未覆盖的高价值字段，冲突内容触发人工裁决而非静默覆盖
+- **经验知识体系**（v2.1）：运营事件报告（接待活动 / 月报）摄入后自动反哺关联实体，`[qa]` / `[narration]` 分区随运营自动积累，无需人工干预
 
 ---
 
@@ -213,7 +229,7 @@ cd my-wiki
 | v1.1 | Decouple | 应用解耦 + 资产引用 + 场景标签 + 正文分区 | ✅ |
 | v2.0 | Intelligence | Schema 自进化：自发现字段 + 冲突澄清 | ✅ |
 | v2.1 | Experience | 经验知识体系：运营反哺 + 事件驱动摄入 + 跨实体增益 | ✅ |
-| v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | 🔲 |
+| v2.5 | Scale | 规模化支撑：媒体资产深化 + 图谱路由 | ✅ |
 | v3.0 | Expansion | 外脑机制 + 自动触发 + 服务端流水线 | 🔲 |
 | v4.0 | Production | 方案生产闭环（md → HTML → PPT） | ⏸ 暂缓 |
 

@@ -187,7 +187,22 @@ sources:
 
 ---
 
+【步骤 6：图谱增量更新（v2.5）】
+
+检查 graphify-out/graph.json 是否存在：
+
+若存在：
+  执行：/graphify ./wiki --update
+  在 wiki/log.md 末尾追加：
+  [YYYY-MM-DD HH:MM] GRAPH-UPDATE | 触发者: experience-ingest | 更新文件: {entity_id} + 增益更新的关联实体列表
+
+若不存在：
+  跳过此步骤，在输出末尾提示：
+  "图谱未初始化。当 wiki 实体超过 150 页或 experiences/ 超过 30 个 session 时，手动执行：/graphify ./wiki --mode deep"
+
+---
+
 请先输出步骤 0–1 的确认信息（config.yml 读取结果 + domain-config 加载的 subtype 和字段列表），
-再依次执行步骤 2–5。
+再依次执行步骤 2–6。
 完成后提示执行 Lint（见 prompts/lint.md）确认 experience 实体生命周期状态正确。
 ```

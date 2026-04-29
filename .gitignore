@@ -49,6 +49,15 @@ wiki-app/source-files/
 wiki-app/wiki/
 !wiki-app/wiki/.gitkeep
 
+# ── Graphify 知识图谱（v2.5）────────────────────────────────
+# graph.json / graph.html / GRAPH_REPORT.md 进 git（白名单保留）
+graphify-out/cache/
+graphify-out/obsidian/
+graphify-out/wiki/
+!graphify-out/graph.json
+!graphify-out/graph.html
+!graphify-out/GRAPH_REPORT.md
+
 # ── 系统文件 ────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

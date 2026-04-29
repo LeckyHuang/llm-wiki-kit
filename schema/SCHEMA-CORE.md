@@ -33,6 +33,18 @@ wiki/                       # LLM 生成和维护的知识库（进 git）
     credentials-index.md
   policies/                 # 政策依据（含有效期）
   competitors/              # 竞品画像（始终存在）
+  experiences/              # v2.1 新增：经验知识（事件型实体）
+    sessions/
+    monthly/
+    lessons/
+  assets/                   # v2.5 新增：媒体资产聚合索引（Lint 自动维护）
+    index.md                # 全库资产索引（按类型 + 按实体 + 跨事件使用记录）
+    README.md
+  graphify-out/             # v2.5 新增：知识图谱（Graphify 生成，进 git，cache/ 除外）
+    graph.json              # 持久化图谱数据
+    graph.html              # 可交互可视化
+    GRAPH_REPORT.md         # 一页式关系摘要（含 AMBIGUOUS 关系列表）
+    cache/                  # SHA256 增量缓存（不进 git）
   archive/                  # 已归档知识（不参与 Query）
   index.md                  # 内容目录（分类索引）
   log.md                    # 操作日志（只追加，不修改历史）
@@ -336,6 +348,7 @@ wiki/archive/
 | EXPERIENCE-INGEST | 摄入经验事件报告（v2.1）|
 | EXPERIENCE-ENRICH | 跨实体增益执行记录（v2.1）|
 | SCHEMA-UPDATE | Schema 或领域配置变更记录 |
+| GRAPH-UPDATE | 图谱增量刷新（v2.5）|
 
 ---
 
@@ -471,3 +484,124 @@ experience:
   auto_enrich: true           # ingest-experience 后是否触发跨实体增益
   enrichment_confirm: true    # 增益前是否展示变更列表等待确认
 ```
+
+---
+
+## 十二、媒体资产索引规范（v2.5）
+
+### 12.1 索引文件位置与职责
+
+- 路径：`wiki/assets/index.md`（进 git）
+- 职责：聚合全库所有实体的 `assets[]` 和 `exhibited_assets[]` 字段，提供按类型、按实体、跨事件的三维检索视图
+- 维护方：**Lint 自动生成**，禁止手动编辑
+
+### 12.2 index.md 格式规范
+
+```markdown
+# 资产索引
+
+> 由 Lint 自动生成，最后更新：YYYY-MM-DD
+> 来源：扫描所有 wiki 实体的 assets[] 和 exhibited_assets[] 字段
+
+## 按类型检索
+
+### video
+| 资产标签 | 所属实体 | 文件路径 / URL | 描述 |
+|---------|---------|--------------|------|
+| 5G融合展示视频 | modules/场景演示大师.md | sources/media/5g-demo.mp4 | 3分钟，适合省级客户 |
+
+### image / html / ppt / pdf / excel / link / diagram
+（格式同 video）
+
+## 按实体检索
+
+### modules/AI数字人讲解系统.md
+- [video] AI数字人演示 → sources/media/digital-human-demo.mp4
+- [ppt] 技术架构说明 → sources/media/dh-architecture.pptx
+
+## 跨事件资产使用记录（来自 experience 实体）
+
+| 资产标签 | 资产类型 | 被引用次数 | 最近引用事件 |
+|---------|---------|---------|------------|
+| 5G融合展示视频 | video | 7 | exp-2026-session-14 |
+```
+
+### 12.3 assets.type 枚举值
+
+`assets[].type` 和 `exhibited_assets[].type` 的标准枚举：
+
+| 类型值 | 含义 |
+|--------|------|
+| `video` | 视频文件（mp4/mov/avi 等） |
+| `image` | 图片文件（png/jpg/svg 等） |
+| `html` | 交互式 HTML 页面或展项 |
+| `ppt` | PPT/PPTX 演示文稿 |
+| `pdf` | PDF 文档 |
+| `excel` | Excel 表格（xls/xlsx） |
+| `link` | 外部 URL 链接 |
+| `diagram` | 架构图或流程图（drawio/figma 等） |
+
+> 可在 domain-config.xlsx Sheet2 中追加自定义类型，不影响系统行为。
+
+### 12.4 跨事件使用记录的价值
+
+来自 `exhibited_assets[]` 的使用记录提供运营洞察：
+- **高频资产**（被多次 experience 引用）：内容价值经过验证，优先保留和更新
+- **零引用资产**（从未出现在 experience 中）：可能需要评估是否下线或更新内容
+
+---
+
+## 十三、知识图谱路由规范（v2.5）
+
+### 13.1 图谱文件结构
+
+Graphify 生成的三个文件均进 git：
+
+| 文件 | 内容 | 用途 |
+|------|------|------|
+| `graphify-out/graph.json` | 持久化图谱数据 | Query 路由 + 增量更新基准 |
+| `graphify-out/graph.html` | 可交互可视化 | 知识关系浏览和验证 |
+| `graphify-out/GRAPH_REPORT.md` | 一页式关系摘要 | Lint 读取 AMBIGUOUS 关系 |
+
+`graph.json` 中每个节点和边保留 `source_type: internal | external` 字段（为 v3.0 外脑机制预埋，当前均为 `internal`）。
+
+### 13.2 图谱路由 Query 两阶段流程
+
+```
+阶段一：图谱层路由（ms 级，token 零消耗）
+  /graphify query "{关键词}"
+    ↓
+  返回相关节点对应的 wiki 页面路径列表（精准子集，通常 10–30 页）
+
+阶段二：LLM 合成（仅处理路由子集）
+  将子集页面内容喂给 LLM 合成输出
+  （token 消耗相比全量扫描最高可降低 71.5 倍）
+```
+
+**触发条件**（满足任一时启用图谱路由）：
+- `wiki/` 实体总数超过 **150 页**（含 experience 实体）
+- 单次 Query 频繁出现 `[内容已截断]` 提示
+- `wiki/experiences/` 中积累超过 **30 个** session 事件
+
+**降级规则**：若 `graphify-out/graph.json` 不存在，自动降级为全量扫描，无需任何配置变更。
+
+### 13.3 AMBIGUOUS 关系处理规则
+
+Graphify 将置信度低于阈值的关系标记为 `AMBIGUOUS`，通过 Lint 自动接入冲突澄清机制：
+
+1. Lint 读取 `graphify-out/GRAPH_REPORT.md`，提取所有 AMBIGUOUS 条目
+2. 与 `wiki/pending-clarifications.md` 已有条目去重（按实体对匹配）
+3. 新条目写入 `pending-clarifications.md`，前缀 `[CONFLICT-GXXX]`
+
+裁决选项：合并为同一实体 / 保留并明确区分 / 无关联。
+
+### 13.4 图谱更新触发规则
+
+每次 Ingest（`ingest.md` 或 `ingest-experience.md`）完成后执行：
+
+```bash
+/graphify ./wiki --update    # 仅处理变更文件（SHA256 缓存，成本极低）
+```
+
+- 若 `graph.json` 不存在（图谱未初始化），跳过此步骤并提示用户手动执行首次建图：`/graphify ./wiki --mode deep`
+- 首次建图须在 wiki 规模达到触发条件后执行，过早建图关系密度不足，图谱价值有限
